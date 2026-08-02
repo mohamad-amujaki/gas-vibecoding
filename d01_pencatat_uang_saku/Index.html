@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Pencatat Uang Saku Siswa</title>
+  <title>Student Pocket Money Tracker</title>
 
   <!-- Google Fonts: Fraunces & IBM Plex Sans -->
   <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -12,44 +12,6 @@
 
   <!-- Tailwind CSS CDN -->
   <script src="https://cdn.tailwindcss.com"></script>
-  <script>
-    tailwind.config = {
-      theme: {
-        extend: {
-          colors: {
-            app: {
-              bg: '#F5F3EF',       // Warm Off-White/Gray
-              card: '#FFFFFF',
-              border: '#E6E2D8',
-              muted: '#78736B',    // Text Secondary
-              main: '#3D3A35',     // Text Main
-              dark: '#262421'
-            },
-            mustard: {
-              DEFAULT: '#C98A2C', // Primary Accent
-              dark: '#A66E1E',
-              light: '#F4E9D5',
-              hover: '#B57B23'
-            },
-            income: {
-              DEFAULT: '#2E7D32',
-              bg: '#EAF5EA',
-              border: '#C8E6C9'
-            },
-            expense: {
-              DEFAULT: '#C62828',
-              bg: '#FDF0F0',
-              border: '#FFCDD2'
-            }
-          },
-          fontFamily: {
-            serif: ['Fraunces', 'serif'],
-            sans: ['IBM Plex Sans', 'sans-serif'],
-          }
-        }
-      }
-    }
-  </script>
 
   <!-- Chart.js CDN -->
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
@@ -57,46 +19,16 @@
   <!-- Lucide Icons CDN -->
   <script src="https://unpkg.com/lucide@latest"></script>
 
-  <style>
-    body {
-      background-color: #F5F3EF;
-      color: #3D3A35;
-      font-family: 'IBM Plex Sans', sans-serif;
-      -webkit-tap-highlight-color: transparent;
-    }
-
-    /* Soft transition highlight animation for newly added transaction row */
-    @keyframes rowHighlight {
-      0% { background-color: #F4E9D5; }
-      100% { background-color: #FFFFFF; }
-    }
-    .animate-row-highlight {
-      animation: rowHighlight 1.2s cubic-bezier(0.4, 0, 0.2, 1) forwards;
-    }
-
-    /* Custom Scrollbar for Transactions List */
-    ::-webkit-scrollbar {
-      width: 6px;
-    }
-    ::-webkit-scrollbar-track {
-      background: #F5F3EF;
-    }
-    ::-webkit-scrollbar-thumb {
-      background: #D4CEBF;
-      border-radius: 3px;
-    }
-    ::-webkit-scrollbar-thumb:hover {
-      background: #C98A2C;
-    }
-  </style>
+  <!-- Include Isolated Modular Stylesheet -->
+  <?!= include('Style'); ?>
 </head>
 
 <body class="min-h-full flex flex-col justify-between antialiased selection:bg-mustard-light selection:text-mustard-dark">
 
-  <!-- Main Container -->
+  <!-- Main Application Container -->
   <div class="max-w-2xl mx-auto w-full px-4 py-6 md:py-10 space-y-6 flex-grow">
 
-    <!-- App Header -->
+    <!-- Top App Navigation & Profile Bar -->
     <header class="flex items-center justify-between pb-2 border-b border-app-border">
       <div class="flex items-center space-x-3">
         <div class="w-10 h-10 rounded-xl bg-mustard flex items-center justify-center text-white shadow-sm">
@@ -108,18 +40,40 @@
         </div>
       </div>
 
-      <button type="button" id="refresh-btn" onclick="fetchData()" title="Muat Ulang Data" class="p-2 rounded-lg text-app-muted hover:text-mustard hover:bg-white border border-transparent hover:border-app-border transition-all">
-        <i data-lucide="refresh-cw" class="w-4 h-4" id="refresh-icon"></i>
-      </button>
+      <!-- User Profile & Action Controls -->
+      <div class="flex items-center space-x-2">
+        <button type="button" onclick="openCategoryModal()" title="Kelola Kategori"
+          aria-label="Kelola Kategori"
+          class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold text-app-main bg-white border border-app-border hover:bg-app-bg transition-all shadow-sm">
+          <i data-lucide="settings" class="w-3.5 h-3.5 text-mustard"></i>
+          <span>Kategori</span>
+        </button>
+
+        <button type="button" onclick="fetchData()" title="Muat Ulang Data"
+          aria-label="Muat Ulang Data"
+          class="p-2 rounded-lg text-app-muted hover:text-mustard hover:bg-white border border-transparent hover:border-app-border transition-all">
+          <i data-lucide="refresh-cw" class="w-4 h-4" id="refresh-icon"></i>
+        </button>
+
+        <div class="h-4 w-px bg-app-border mx-1"></div>
+
+        <!-- User Logout Badge -->
+        <button type="button" onclick="handleLogout()" title="Keluar Akun"
+          aria-label="Keluar Akun"
+          class="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-medium text-app-muted hover:text-expense hover:bg-expense-bg transition-all">
+          <span id="active-username" class="font-semibold text-app-main">Siswa</span>
+          <i data-lucide="log-out" class="w-3.5 h-3.5"></i>
+        </button>
+      </div>
     </header>
 
-    <!-- (A) Dashboard Balance Header -->
+    <!-- (A) Dashboard Balance Card -->
     <section class="bg-app-card rounded-2xl p-6 border border-app-border shadow-sm space-y-4">
       <div class="flex justify-between items-start">
         <span class="text-xs font-semibold uppercase tracking-wider text-app-muted">Total Saldo Saat Ini</span>
         <span class="inline-flex items-center gap-1 text-xs px-2.5 py-1 rounded-full bg-app-bg text-app-main font-medium border border-app-border">
           <i data-lucide="wallet" class="w-3.5 h-3.5 text-mustard"></i>
-          Active Sheet
+          Tabungan Saku
         </span>
       </div>
 
@@ -129,7 +83,7 @@
         </div>
       </div>
 
-      <!-- Quick Summary Pills -->
+      <!-- Quick Summary Income/Expense Pills -->
       <div class="grid grid-cols-2 gap-3 pt-2">
         <div class="bg-income-bg/60 border border-income-border rounded-xl p-3 flex items-center space-x-3">
           <div class="w-8 h-8 rounded-lg bg-income-bg text-income flex items-center justify-center shrink-0">
@@ -162,7 +116,7 @@
 
       <form id="tx-form" onsubmit="handleFormSubmit(event)" class="space-y-4">
 
-        <!-- Type Segmented Control -->
+        <!-- Type Toggle Buttons -->
         <div class="grid grid-cols-2 gap-2 p-1 bg-app-bg rounded-xl border border-app-border">
           <button type="button" id="btn-type-pengeluaran" onclick="setType('Pengeluaran')"
             class="py-2 px-3 text-xs font-semibold rounded-lg transition-all flex items-center justify-center gap-1.5 bg-white text-expense shadow-sm border border-app-border">
@@ -183,7 +137,7 @@
 
           <!-- Date Input -->
           <div class="space-y-1">
-            <label class="text-xs font-medium text-app-muted flex items-center gap-1">
+            <label class="text-xs font-medium text-app-muted flex items-center gap-1" for="tx-date">
               <i data-lucide="calendar" class="w-3 h-3"></i> Tanggal
             </label>
             <input type="date" id="tx-date" required
@@ -192,30 +146,27 @@
 
           <!-- Nominal Amount Input -->
           <div class="space-y-1">
-            <label class="text-xs font-medium text-app-muted flex items-center gap-1">
+            <label class="text-xs font-medium text-app-muted flex items-center gap-1" for="tx-amount">
               <i data-lucide="credit-card" class="w-3 h-3"></i> Nominal (Rp)
             </label>
-            <input type="number" id="tx-amount" min="500" step="any" placeholder="Contoh: 15000" required
+            <input type="number" id="tx-amount" min="1" step="any" placeholder="Contoh: 15000" required
               class="w-full text-xs font-medium bg-app-bg border border-app-border rounded-xl px-3 py-2.5 text-app-main focus:outline-none focus:border-mustard focus:ring-1 focus:ring-mustard transition-all">
           </div>
 
-          <!-- Category Dropdown -->
+          <!-- Dynamic Category Dropdown -->
           <div class="space-y-1">
-            <label class="text-xs font-medium text-app-muted flex items-center gap-1">
+            <label class="text-xs font-medium text-app-muted flex items-center gap-1" for="tx-category">
               <i data-lucide="tag" class="w-3 h-3"></i> Kategori
             </label>
             <select id="tx-category" required
               class="w-full text-xs font-medium bg-app-bg border border-app-border rounded-xl px-3 py-2.5 text-app-main focus:outline-none focus:border-mustard focus:ring-1 focus:ring-mustard transition-all">
-              <option value="Jajan">Jajan</option>
-              <option value="Transport">Transport</option>
-              <option value="Tabungan">Tabungan</option>
-              <option value="Lainnya">Lainnya</option>
+              <!-- Dynamically populated -->
             </select>
           </div>
 
           <!-- Description Input -->
           <div class="space-y-1">
-            <label class="text-xs font-medium text-app-muted flex items-center gap-1">
+            <label class="text-xs font-medium text-app-muted flex items-center gap-1" for="tx-desc">
               <i data-lucide="file-text" class="w-3 h-3"></i> Deskripsi
             </label>
             <input type="text" id="tx-desc" placeholder="Contoh: Nasi Goreng Kantin" required
@@ -224,7 +175,7 @@
         </div>
 
         <!-- Submit Button -->
-        <button type="submit" id="submit-btn"
+        <button type="submit" id="submit-btn" aria-label="Simpan Transaksi"
           class="w-full py-3 px-4 rounded-xl bg-mustard hover:bg-mustard-hover text-white text-xs font-semibold tracking-wide transition-all shadow-sm flex items-center justify-center gap-2 disabled:opacity-50">
           <i data-lucide="plus" class="w-4 h-4"></i>
           <span>Simpan Transaksi</span>
@@ -233,7 +184,7 @@
       </form>
     </section>
 
-    <!-- Two Columns Layout: Chart & Recent Transactions -->
+    <!-- Analytics & History Section Grid -->
     <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
 
       <!-- (D) Category Expense Chart (Last 7 Days) -->
@@ -266,12 +217,10 @@
           </span>
         </div>
 
-        <!-- Transactions Scrollable Container -->
         <div id="tx-list" class="space-y-2 overflow-y-auto max-h-[300px] pr-1 flex-grow">
           <!-- Dynamically populated rows -->
         </div>
 
-        <!-- Empty state for list -->
         <div id="list-empty-state" class="hidden py-8 text-center space-y-2">
           <i data-lucide="receipt" class="w-8 h-8 mx-auto text-app-muted/40"></i>
           <p class="text-xs text-app-muted">Belum ada data transaksi.</p>
@@ -284,8 +233,117 @@
 
   <!-- Footer -->
   <footer class="py-4 text-center text-xs text-app-muted border-t border-app-border bg-app-card/50">
-    <p>Pencatat Uang Saku Siswa &copy; Google Apps Script & Sheet DB</p>
+    <p>Student Pocket Money Tracker &copy; Google Apps Script & Sheet DB</p>
   </footer>
+
+  <!-- 🔐 AUTHENTICATION MODAL OVERLAY -->
+  <div id="auth-modal" class="fixed inset-0 z-50 bg-app-dark/60 backdrop-blur-sm hidden items-center justify-center p-4">
+    <div class="bg-white rounded-2xl p-6 border border-app-border max-w-sm w-full shadow-2xl space-y-5 animate-modal-in">
+
+      <div class="text-center space-y-1">
+        <div class="w-12 h-12 rounded-2xl bg-mustard text-white flex items-center justify-center mx-auto mb-2 shadow-sm">
+          <i data-lucide="user-check" class="w-6 h-6"></i>
+        </div>
+        <h2 class="text-lg font-bold font-serif text-app-main">Selamat Datang!</h2>
+        <p id="auth-desc" class="text-xs text-app-muted">Masukkan username dan password Anda.</p>
+      </div>
+
+      <!-- Auth Mode Toggle Tabs -->
+      <div class="grid grid-cols-2 gap-1.5 p-1 bg-app-bg rounded-xl border border-app-border">
+        <button type="button" id="auth-tab-login" onclick="setAuthMode('login')"
+          class="py-2 text-xs font-semibold rounded-lg bg-white text-app-main shadow-sm border border-app-border transition-all">
+          Masuk
+        </button>
+        <button type="button" id="auth-tab-register" onclick="setAuthMode('register')"
+          class="py-2 text-xs font-semibold rounded-lg text-app-muted hover:text-app-main transition-all">
+          Daftar Baru
+        </button>
+      </div>
+
+      <!-- Auth Form -->
+      <form onsubmit="handleAuthSubmit(event)" class="space-y-3">
+        <div class="space-y-1">
+          <label class="text-xs font-medium text-app-muted" for="auth-username">Username</label>
+          <input type="text" id="auth-username" placeholder="Contoh: siswa123" required
+            class="w-full text-xs font-medium bg-app-bg border border-app-border rounded-xl px-3 py-2.5 text-app-main focus:outline-none focus:border-mustard focus:ring-1 focus:ring-mustard transition-all">
+        </div>
+
+        <div class="space-y-1">
+          <label class="text-xs font-medium text-app-muted" for="auth-password">Password</label>
+          <input type="password" id="auth-password" placeholder="••••••••" required
+            class="w-full text-xs font-medium bg-app-bg border border-app-border rounded-xl px-3 py-2.5 text-app-main focus:outline-none focus:border-mustard focus:ring-1 focus:ring-mustard transition-all">
+        </div>
+
+        <button type="submit" id="auth-btn-submit"
+          class="w-full py-3 px-4 rounded-xl bg-mustard hover:bg-mustard-hover text-white text-xs font-semibold transition-all shadow-sm">
+          Masuk ke Akun
+        </button>
+      </form>
+
+    </div>
+  </div>
+
+  <!-- 🏷️ CATEGORY MANAGEMENT MODAL -->
+  <div id="category-modal" class="fixed inset-0 z-50 bg-app-dark/60 backdrop-blur-sm hidden items-center justify-center p-4">
+    <div class="bg-white rounded-2xl p-6 border border-app-border max-w-md w-full shadow-2xl space-y-4 animate-modal-in max-h-[90vh] overflow-y-auto">
+
+      <div class="flex items-center justify-between border-b border-app-border pb-3">
+        <h3 class="text-sm font-bold text-app-main flex items-center gap-2">
+          <i data-lucide="tag" class="w-4 h-4 text-mustard"></i>
+          Kelola Kategori
+        </h3>
+        <button type="button" onclick="closeCategoryModal()" class="text-app-muted hover:text-app-main p-1">
+          <i data-lucide="x" class="w-4 h-4"></i>
+        </button>
+      </div>
+
+      <!-- Add Category Form with Icon Select Dropdown -->
+      <form onsubmit="handleAddCategory(event)" class="p-3.5 bg-app-bg rounded-xl border border-app-border space-y-3">
+        <p class="text-xs font-semibold text-app-main">Tambah Kategori Baru</p>
+
+        <div class="space-y-2">
+          <input type="text" id="cat-name" placeholder="Nama Kategori (mis. Beli Buku)" required
+            class="w-full text-xs font-medium bg-white border border-app-border rounded-lg px-3 py-2 text-app-main focus:outline-none focus:border-mustard">
+
+          <div class="grid grid-cols-2 gap-2">
+            <select id="cat-type" required
+              class="text-xs font-medium bg-white border border-app-border rounded-lg px-3 py-2 text-app-main focus:outline-none focus:border-mustard">
+              <option value="Pengeluaran">Pengeluaran</option>
+              <option value="Pemasukan">Pemasukan</option>
+            </select>
+
+            <!-- Icon Preset Select Dropdown -->
+            <select id="cat-icon" required
+              class="text-xs font-medium bg-white border border-app-border rounded-lg px-3 py-2 text-app-main focus:outline-none focus:border-mustard">
+              <option value="utensils">🍴 Makanan / Jajan</option>
+              <option value="bus">🚌 Transportasi</option>
+              <option value="piggy-bank">🐖 Tabungan</option>
+              <option value="shopping-bag">🛍️ Belanja</option>
+              <option value="book">📚 Buku / Edukasi</option>
+              <option value="heart">💖 Kesehatan</option>
+              <option value="film">🎬 Hiburan</option>
+              <option value="wrench">🛠️ Tagihan & Jasa</option>
+              <option value="folder" selected>📁 Lainnya</option>
+            </select>
+          </div>
+        </div>
+
+        <button type="submit" id="cat-submit-btn"
+          class="w-full py-2.5 bg-mustard hover:bg-mustard-hover text-white text-xs font-semibold rounded-lg transition-all shadow-sm">
+          Simpan Kategori Baru
+        </button>
+      </form>
+
+      <!-- Active User Categories List -->
+      <div class="space-y-2">
+        <p class="text-xs font-semibold text-app-muted">Daftar Kategori Anda</p>
+        <div id="category-items-list" class="space-y-2 max-h-48 overflow-y-auto">
+          <!-- Dynamically populated categories -->
+        </div>
+      </div>
+
+    </div>
+  </div>
 
   <!-- Toast Notification System -->
   <div id="toast" class="fixed bottom-4 right-4 z-50 transform translate-y-16 opacity-0 transition-all duration-300 pointer-events-none">
@@ -295,392 +353,8 @@
     </div>
   </div>
 
-  <!-- JavaScript Logic -->
-  <script>
-    // Global Application State
-    let state = {
-      totalBalance: 0,
-      totalIncome: 0,
-      totalExpense: 0,
-      transactions: [],
-      chartData: { labels: [], data: [], colors: [] }
-    };
+  <!-- Include Isolated Modular JavaScript Logic -->
+  <?!= include('Script'); ?>
 
-    let chartInstance = null;
-
-    // Initialize application on load
-    document.addEventListener('DOMContentLoaded', () => {
-      // Set default date input to today YYYY-MM-DD
-      const dateInput = document.getElementById('tx-date');
-      const today = new Date().toISOString().split('T')[0];
-      dateInput.value = today;
-
-      lucide.createIcons();
-      fetchData();
-    });
-
-    // Toggle transaction type (Pengeluaran vs Pemasukan)
-    function setType(type) {
-      const typeInput = document.getElementById('tx-type');
-      const btnPengeluaran = document.getElementById('btn-type-pengeluaran');
-      const btnPemasukan = document.getElementById('btn-type-pemasukan');
-
-      typeInput.value = type;
-
-      if (type === 'Pengeluaran') {
-        btnPengeluaran.className = 'py-2 px-3 text-xs font-semibold rounded-lg transition-all flex items-center justify-center gap-1.5 bg-white text-expense shadow-sm border border-app-border';
-        btnPemasukan.className = 'py-2 px-3 text-xs font-semibold rounded-lg transition-all flex items-center justify-center gap-1.5 text-app-muted hover:text-income';
-      } else {
-        btnPemasukan.className = 'py-2 px-3 text-xs font-semibold rounded-lg transition-all flex items-center justify-center gap-1.5 bg-white text-income shadow-sm border border-app-border';
-        btnPengeluaran.className = 'py-2 px-3 text-xs font-semibold rounded-lg transition-all flex items-center justify-center gap-1.5 text-app-muted hover:text-expense';
-      }
-    }
-
-    // Format Number into Indonesian Rupiah (IDR)
-    function formatIDR(amount) {
-      return new Intl.NumberFormat('id-ID', {
-        style: 'currency',
-        currency: 'IDR',
-        minimumFractionDigits: 0,
-        maximumFractionDigits: 0
-      }).format(amount);
-    }
-
-    // Format YYYY-MM-DD into readable date (e.g. 1 Agt 2026)
-    function formatDateDisplay(dateStr) {
-      if (!dateStr) return '';
-      const date = new Date(dateStr);
-      if (isNaN(date.getTime())) return dateStr;
-      return date.toLocaleDateString('id-ID', {
-        day: 'numeric',
-        month: 'short',
-        year: 'numeric'
-      });
-    }
-
-    // Fetch initial data from GAS Backend
-    function fetchData() {
-      const refreshIcon = document.getElementById('refresh-icon');
-      if (refreshIcon) refreshIcon.classList.add('animate-spin');
-
-      if (typeof google !== 'undefined' && google.script && google.script.run) {
-        google.script.run
-          .withSuccessHandler(onDataLoaded)
-          .withFailureHandler(onDataError)
-          .getInitialData();
-      } else {
-        // Fallback Mock Data for local preview/development
-        console.warn('GAS Environment not detected. Using mock data.');
-        setTimeout(() => {
-          const mockData = {
-            totalBalance: 125000,
-            totalIncome: 200000,
-            totalExpense: 75000,
-            transactions: [
-              { id: 'tx-1', date: '2026-08-01', description: 'Nasi Goreng Kantin', amount: 15000, type: 'Pengeluaran', category: 'Jajan', createdAt: new Date().toISOString() },
-              { id: 'tx-2', date: '2026-08-01', description: 'Angkot Sekolah', amount: 10000, type: 'Pengeluaran', category: 'Transport', createdAt: new Date(Date.now() - 3600000).toISOString() },
-              { id: 'tx-3', date: '2026-07-31', description: 'Uang Saku Mingguan', amount: 200000, type: 'Pemasukan', category: 'Tabungan', createdAt: new Date(Date.now() - 86400000).toISOString() },
-              { id: 'tx-4', date: '2026-07-30', description: 'Beli Buku Tulis', amount: 50000, type: 'Pengeluaran', category: 'Lainnya', createdAt: new Date(Date.now() - 172800000).toISOString() }
-            ],
-            chartData: {
-              labels: ['Jajan', 'Transport', 'Lainnya'],
-              data: [15000, 10000, 50000],
-              colors: ['#C98A2C', '#A66E1E', '#8C857B']
-            }
-          };
-          onDataLoaded(JSON.stringify(mockData));
-        }, 500);
-      }
-    }
-
-    function onDataLoaded(jsonResult) {
-      const refreshIcon = document.getElementById('refresh-icon');
-      if (refreshIcon) refreshIcon.classList.remove('animate-spin');
-
-      try {
-        state = JSON.parse(jsonResult);
-        renderUI();
-      } catch (err) {
-        showToast('Gagal memproses data backend', 'error');
-      }
-    }
-
-    function onDataError(err) {
-      const refreshIcon = document.getElementById('refresh-icon');
-      if (refreshIcon) refreshIcon.classList.remove('animate-spin');
-      showToast(err.message || 'Terjadi kesalahan sistem', 'error');
-    }
-
-    // Main Render Pipeline
-    function renderUI() {
-      // (A) Dashboard Balance Header
-      document.getElementById('balance-amount').innerText = formatIDR(state.totalBalance);
-      document.getElementById('total-income').innerText = formatIDR(state.totalIncome || 0);
-      document.getElementById('total-expense').innerText = formatIDR(state.totalExpense || 0);
-
-      // (C) Recent Transactions List
-      renderTransactionsList();
-
-      // (D) Expense Chart
-      renderChart();
-    }
-
-    // Category Lucide Icon Mapper
-    function getCategoryIconName(category) {
-      switch (category) {
-        case 'Jajan': return 'utensils';
-        case 'Transport': return 'bus';
-        case 'Tabungan': return 'piggy-bank';
-        default: return 'folder';
-      }
-    }
-
-    // Render Transactions List
-    function renderTransactionsList(highlightId = null) {
-      const container = document.getElementById('tx-list');
-      const emptyState = document.getElementById('list-empty-state');
-      const countBadge = document.getElementById('tx-count');
-
-      countBadge.innerText = `${state.transactions.length} transaksi`;
-
-      if (!state.transactions || state.transactions.length === 0) {
-        container.innerHTML = '';
-        emptyState.classList.remove('hidden');
-        return;
-      }
-
-      emptyState.classList.add('hidden');
-
-      container.innerHTML = state.transactions.map(tx => {
-        const isIncome = tx.type === 'Pemasukan';
-        const iconName = getCategoryIconName(tx.category);
-        const amountPrefix = isIncome ? '+' : '-';
-        const amountColorClass = isIncome ? 'text-income font-semibold' : 'text-expense font-semibold';
-        const badgeBgClass = isIncome ? 'bg-income-bg text-income' : 'bg-expense-bg text-expense';
-        const isNew = tx.id === highlightId;
-        const highlightClass = isNew ? 'animate-row-highlight' : 'bg-white';
-
-        return `
-          <div class="flex items-center justify-between p-3 rounded-xl border border-app-border transition-all ${highlightClass}">
-            <div class="flex items-center space-x-3 min-w-0">
-              <div class="w-9 h-9 rounded-xl ${badgeBgClass} flex items-center justify-center shrink-0">
-                <i data-lucide="${iconName}" class="w-4 h-4"></i>
-              </div>
-              <div class="min-w-0">
-                <p class="text-xs font-semibold text-app-main truncate">${escapeHtml(tx.description)}</p>
-                <div class="flex items-center space-x-2 text-[11px] text-app-muted">
-                  <span>${formatDateDisplay(tx.date)}</span>
-                  <span>&bull;</span>
-                  <span class="font-medium text-app-main">${escapeHtml(tx.category)}</span>
-                </div>
-              </div>
-            </div>
-            <div class="text-right shrink-0">
-              <p class="text-xs ${amountColorClass}">
-                ${amountPrefix} ${formatIDR(tx.amount)}
-              </p>
-            </div>
-          </div>
-        `;
-      }).join('');
-
-      lucide.createIcons();
-    }
-
-    // Render 7-Day Expense Chart via Chart.js
-    function renderChart() {
-      const ctx = document.getElementById('expense-chart').getContext('2d');
-      const chartEmptyState = document.getElementById('chart-empty-state');
-
-      const hasData = state.chartData && state.chartData.data && state.chartData.data.length > 0;
-
-      if (!hasData) {
-        if (chartInstance) {
-          chartInstance.destroy();
-          chartInstance = null;
-        }
-        chartEmptyState.classList.remove('hidden');
-        return;
-      }
-
-      chartEmptyState.classList.add('hidden');
-
-      if (chartInstance) {
-        chartInstance.destroy();
-      }
-
-      chartInstance = new Chart(ctx, {
-        type: 'doughnut',
-        data: {
-          labels: state.chartData.labels,
-          datasets: [{
-            data: state.chartData.data,
-            backgroundColor: state.chartData.colors,
-            borderWidth: 2,
-            borderColor: '#FFFFFF',
-            hoverOffset: 4
-          }]
-        },
-        options: {
-          responsive: true,
-          maintainAspectRatio: false,
-          cutout: '70%',
-          plugins: {
-            legend: {
-              position: 'bottom',
-              labels: {
-                boxWidth: 12,
-                padding: 12,
-                font: {
-                  family: 'IBM Plex Sans',
-                  size: 11
-                },
-                color: '#3D3A35'
-              }
-            },
-            tooltip: {
-              callbacks: {
-                label: function(context) {
-                  const label = context.label || '';
-                  const value = context.parsed || 0;
-                  return ` ${label}: ${formatIDR(value)}`;
-                }
-              }
-            }
-          }
-        }
-      });
-    }
-
-    // Quick Add Form Handler (Client Validation & Optimistic UI Update)
-    function handleFormSubmit(e) {
-      e.preventDefault();
-
-      const type = document.getElementById('tx-type').value;
-      const date = document.getElementById('tx-date').value;
-      const amount = parseFloat(document.getElementById('tx-amount').value);
-      const category = document.getElementById('tx-category').value;
-      const description = document.getElementById('tx-desc').value.trim();
-      const submitBtn = document.getElementById('submit-btn');
-
-      if (!amount || amount <= 0) {
-        showToast('Nominal harus lebih besar dari 0', 'error');
-        return;
-      }
-      if (!description) {
-        showToast('Deskripsi wajib diisi', 'error');
-        return;
-      }
-
-      const payload = { type, date, amount, category, description };
-
-      // 1. Optimistic UI Update
-      const tempId = 'temp-' + Date.now();
-      const tempTx = {
-        id: tempId,
-        date: date,
-        description: description,
-        amount: amount,
-        type: type,
-        category: category,
-        createdAt: new Date().toISOString()
-      };
-
-      // Add to front of array
-      state.transactions.unshift(tempTx);
-      if (type === 'Pemasukan') {
-        state.totalBalance += amount;
-        state.totalIncome += amount;
-      } else {
-        state.totalBalance -= amount;
-        state.totalExpense += amount;
-      }
-
-      // Re-render immediately with highlight on the new row
-      document.getElementById('balance-amount').innerText = formatIDR(state.totalBalance);
-      document.getElementById('total-income').innerText = formatIDR(state.totalIncome);
-      document.getElementById('total-expense').innerText = formatIDR(state.totalExpense);
-      renderTransactionsList(tempId);
-
-      // Disable button & show spinner
-      submitBtn.disabled = true;
-      submitBtn.innerHTML = `
-        <i data-lucide="loader-2" class="w-4 h-4 animate-spin"></i>
-        <span>Menyimpan...</span>
-      `;
-      lucide.createIcons();
-
-      // 2. Silent Server Sync via google.script.run
-      if (typeof google !== 'undefined' && google.script && google.script.run) {
-        google.script.run
-          .withSuccessHandler((updatedJson) => {
-            resetForm(submitBtn);
-            onDataLoaded(updatedJson);
-            showToast('Transaksi berhasil disimpan!');
-          })
-          .withFailureHandler((err) => {
-            resetForm(submitBtn);
-            showToast('Gagal sinkron server: ' + err.message, 'error');
-            // Rollback fresh state from server
-            fetchData();
-          })
-          .addTransaction(payload);
-      } else {
-        // Mock server delay
-        setTimeout(() => {
-          resetForm(submitBtn);
-          showToast('Transaksi berhasil disimpan (Mock)!');
-        }, 600);
-      }
-    }
-
-    function resetForm(submitBtn) {
-      document.getElementById('tx-desc').value = '';
-      document.getElementById('tx-amount').value = '';
-      submitBtn.disabled = false;
-      submitBtn.innerHTML = `
-        <i data-lucide="plus" class="w-4 h-4"></i>
-        <span>Simpan Transaksi</span>
-      `;
-      lucide.createIcons();
-    }
-
-    // Utility: Toast Notification
-    function showToast(msg, type = 'info') {
-      const toast = document.getElementById('toast');
-      const toastMsg = document.getElementById('toast-msg');
-      const toastIcon = document.getElementById('toast-icon');
-
-      toastMsg.innerText = msg;
-
-      if (type === 'error') {
-        toastIcon.setAttribute('data-lucide', 'alert-circle');
-        toastIcon.className = 'w-4 h-4 text-expense';
-      } else {
-        toastIcon.setAttribute('data-lucide', 'check-circle');
-        toastIcon.className = 'w-4 h-4 text-mustard';
-      }
-      lucide.createIcons();
-
-      toast.classList.remove('translate-y-16', 'opacity-0', 'pointer-events-none');
-      toast.classList.add('translate-y-0', 'opacity-100');
-
-      setTimeout(() => {
-        toast.classList.remove('translate-y-0', 'opacity-100');
-        toast.classList.add('translate-y-16', 'opacity-0', 'pointer-events-none');
-      }, 3000);
-    }
-
-    // Helper to sanitize text output against XSS
-    function escapeHtml(text) {
-      if (!text) return '';
-      return String(text)
-        .replace(/&/g, '&amp;')
-        .replace(/</g, '&lt;')
-        .replace(/>/g, '&gt;')
-        .replace(/"/g, '&quot;')
-        .replace(/'/g, '&#039;');
-    }
-  </script>
 </body>
 </html>

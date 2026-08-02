@@ -1,0 +1,41 @@
+<style>
+  body {
+    background-color: #F5F3EF;
+    color: #3D3A35;
+    font-family: 'IBM Plex Sans', sans-serif;
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  /* Soft transition highlight animation for newly added transaction row */
+  @keyframes rowHighlight {
+    0% { background-color: #F4E9D5; }
+    100% { background-color: #FFFFFF; }
+  }
+  .animate-row-highlight {
+    animation: rowHighlight 1.2s cubic-bezier(0.4, 0, 0.2, 1) forwards;
+  }
+
+  /* Modal fade in animation */
+  @keyframes modalFadeIn {
+    0% { opacity: 0; transform: scale(0.96); }
+    100% { opacity: 1; transform: scale(1); }
+  }
+  .animate-modal-in {
+    animation: modalFadeIn 0.2s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+  }
+
+  /* Custom Scrollbar */
+  ::-webkit-scrollbar {
+    width: 6px;
+  }
+  ::-webkit-scrollbar-track {
+    background: #F5F3EF;
+  }
+  ::-webkit-scrollbar-thumb {
+    background: #D4CEBF;
+    border-radius: 3px;
+  }
+  ::-webkit-scrollbar-thumb:hover {
+    background: #C98A2C;
+  }
+</style>

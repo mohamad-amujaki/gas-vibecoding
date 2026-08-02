@@ -1,0 +1,5 @@
+{
+    "files": {
+        "includes": ["**", "!d01_pencatat_uang_saku"]
+    }
+}

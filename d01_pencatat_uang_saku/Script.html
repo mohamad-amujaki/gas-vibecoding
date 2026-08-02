@@ -1,0 +1,639 @@
+<script>
+  // Tailwind CSS Configuration
+  tailwind.config = {
+    theme: {
+      extend: {
+        colors: {
+          app: {
+            bg: '#F5F3EF',
+            card: '#FFFFFF',
+            border: '#E6E2D8',
+            muted: '#78736B',
+            main: '#3D3A35',
+            dark: '#262421'
+          },
+          mustard: {
+            DEFAULT: '#C98A2C',
+            dark: '#A66E1E',
+            light: '#F4E9D5',
+            hover: '#B57B23'
+          },
+          income: {
+            DEFAULT: '#2E7D32',
+            bg: '#EAF5EA',
+            border: '#C8E6C9'
+          },
+          expense: {
+            DEFAULT: '#C62828',
+            bg: '#FDF0F0',
+            border: '#FFCDD2'
+          }
+        },
+        fontFamily: {
+          serif: ['Fraunces', 'serif'],
+          sans: ['IBM Plex Sans', 'sans-serif'],
+        }
+      }
+    }
+  };
+
+  // Promise Wrapper for google.script.run to enable clean async/await syntax
+  const runGas = (funcName, ...args) => {
+    return new Promise((resolve, reject) => {
+      if (typeof google !== 'undefined' && google.script && google.script.run) {
+        google.script.run
+          .withSuccessHandler((result) => resolve(result))
+          .withFailureHandler((error) => reject(new Error(error.message || error)))
+          [funcName](...args);
+      } else {
+        reject(new Error('Google Apps Script environment not available'));
+      }
+    });
+  };
+
+  // Global Application State
+  const state = {
+    userId: null,
+    username: null,
+    totalBalance: 0,
+    totalIncome: 0,
+    totalExpense: 0,
+    transactions: [],
+    categories: [],
+    chartData: { labels: [], data: [], colors: [] },
+    authMode: 'login'
+  };
+
+  let chartInstance = null;
+
+  // Initial setup on DOM Ready
+  document.addEventListener('DOMContentLoaded', () => {
+    const savedUserId = localStorage.getItem('sakusiswa_user_id');
+    const savedUsername = localStorage.getItem('sakusiswa_username');
+
+    if (savedUserId && savedUsername) {
+      state.userId = savedUserId;
+      state.username = savedUsername;
+      hideAuthModal();
+      initAppUI();
+      fetchData();
+    } else {
+      showAuthModal();
+    }
+
+    const dateInput = document.getElementById('tx-date');
+    if (dateInput) {
+      dateInput.value = new Date().toISOString().split('T')[0];
+    }
+  });
+
+  // --- Auth Handlers ---
+  function setAuthMode(mode) {
+    state.authMode = mode;
+    const tabLogin = document.getElementById('auth-tab-login');
+    const tabRegister = document.getElementById('auth-tab-register');
+    const btnSubmit = document.getElementById('auth-btn-submit');
+    const authDesc = document.getElementById('auth-desc');
+
+    if (mode === 'login') {
+      tabLogin.className = 'py-2 text-xs font-semibold rounded-lg bg-white text-app-main shadow-sm border border-app-border transition-all';
+      tabRegister.className = 'py-2 text-xs font-semibold rounded-lg text-app-muted hover:text-app-main transition-all';
+      btnSubmit.innerText = 'Masuk ke Akun';
+      authDesc.innerText = 'Masukkan username dan password Anda.';
+    } else {
+      tabRegister.className = 'py-2 text-xs font-semibold rounded-lg bg-white text-app-main shadow-sm border border-app-border transition-all';
+      tabLogin.className = 'py-2 text-xs font-semibold rounded-lg text-app-muted hover:text-app-main transition-all';
+      btnSubmit.innerText = 'Daftar Akun Baru';
+      authDesc.innerText = 'Buat akun baru untuk mulai mencatat uang saku.';
+    }
+  }
+
+  async function handleAuthSubmit(e) {
+    e.preventDefault();
+    const usernameInput = document.getElementById('auth-username');
+    const passwordInput = document.getElementById('auth-password');
+    const submitBtn = document.getElementById('auth-btn-submit');
+
+    const username = usernameInput.value.trim();
+    const password = passwordInput.value.trim();
+
+    if (!username || !password) {
+      showToast('Username dan password wajib diisi', 'error');
+      return;
+    }
+
+    submitBtn.disabled = true;
+    submitBtn.innerText = 'Memproses...';
+
+    try {
+      let res;
+      if (state.authMode === 'login') {
+        res = await runGas('loginUser', { username, password });
+      } else {
+        res = await runGas('registerUser', { username, password });
+      }
+
+      state.userId = res.userId;
+      state.username = res.username;
+
+      localStorage.setItem('sakusiswa_user_id', res.userId);
+      localStorage.setItem('sakusiswa_username', res.username);
+
+      hideAuthModal();
+      initAppUI();
+      await fetchData();
+      showToast(`Selamat datang, ${res.username}!`);
+
+      usernameInput.value = '';
+      passwordInput.value = '';
+    } catch (err) {
+      showToast(err.message, 'error');
+    } finally {
+      submitBtn.disabled = false;
+      submitBtn.innerText = state.authMode === 'login' ? 'Masuk ke Akun' : 'Daftar Akun Baru';
+    }
+  }
+
+  function handleLogout() {
+    localStorage.removeItem('sakusiswa_user_id');
+    localStorage.removeItem('sakusiswa_username');
+    state.userId = null;
+    state.username = null;
+    state.transactions = [];
+    state.categories = [];
+    showAuthModal();
+    showToast('Anda telah keluar.');
+  }
+
+  function showAuthModal() {
+    const modal = document.getElementById('auth-modal');
+    modal.classList.remove('hidden');
+    modal.classList.add('flex');
+    if (window.lucide) lucide.createIcons();
+  }
+
+  function hideAuthModal() {
+    const modal = document.getElementById('auth-modal');
+    modal.classList.add('hidden');
+    modal.classList.remove('flex');
+  }
+
+  function initAppUI() {
+    const userLabel = document.getElementById('active-username');
+    if (userLabel) userLabel.innerText = state.username || 'Siswa';
+  }
+
+  // --- Data Fetching ---
+  async function fetchData() {
+    const refreshIcon = document.getElementById('refresh-icon');
+    if (refreshIcon) refreshIcon.classList.add('animate-spin');
+
+    try {
+      const jsonResult = await runGas('getInitialDataForUser', state.userId);
+      const parsedData = JSON.parse(jsonResult);
+      state.totalBalance = parsedData.totalBalance;
+      state.totalIncome = parsedData.totalIncome;
+      state.totalExpense = parsedData.totalExpense;
+      state.transactions = parsedData.transactions;
+      state.categories = parsedData.categories;
+      state.chartData = parsedData.chartData;
+      renderUI();
+    } catch (err) {
+      showToast('Gagal memuat data: ' + err.message, 'error');
+    } finally {
+      if (refreshIcon) refreshIcon.classList.remove('animate-spin');
+    }
+  }
+
+  // --- UI Render Pipeline ---
+  function renderUI() {
+    document.getElementById('balance-amount').innerText = formatIDR(state.totalBalance);
+    document.getElementById('total-income').innerText = formatIDR(state.totalIncome || 0);
+    document.getElementById('total-expense').innerText = formatIDR(state.totalExpense || 0);
+
+    renderCategoriesDropdown();
+    renderTransactionsList();
+    renderChart();
+
+    if (window.lucide) lucide.createIcons();
+  }
+
+  // --- Category Handlers ---
+  function renderCategoriesDropdown() {
+    const select = document.getElementById('tx-category');
+    if (!select) return;
+
+    const currentType = String(document.getElementById('tx-type').value).trim().toLowerCase();
+
+    // Resilient case-insensitive type filtering
+    const filteredCategories = state.categories.filter(c =>
+      String(c.type).trim().toLowerCase() === currentType
+    );
+
+    if (filteredCategories.length > 0) {
+      select.innerHTML = filteredCategories.map(c => `
+        <option value="${escapeHtml(c.name)}">${escapeHtml(c.name)}</option>
+      `).join('');
+    } else {
+      // Fallback if no matching type category
+      select.innerHTML = state.categories.map(c => `
+        <option value="${escapeHtml(c.name)}">${escapeHtml(c.name)}</option>
+      `).join('');
+
+      if (state.categories.length === 0) {
+        select.innerHTML = `<option value="Lainnya">Lainnya</option>`;
+      }
+    }
+  }
+
+  function openCategoryModal() {
+    renderCategoriesList();
+    const modal = document.getElementById('category-modal');
+    modal.classList.remove('hidden');
+    modal.classList.add('flex');
+    if (window.lucide) lucide.createIcons();
+  }
+
+  function closeCategoryModal() {
+    const modal = document.getElementById('category-modal');
+    modal.classList.add('hidden');
+    modal.classList.remove('flex');
+  }
+
+  function renderCategoriesList() {
+    const container = document.getElementById('category-items-list');
+    if (!container) return;
+
+    if (!state.categories || state.categories.length === 0) {
+      container.innerHTML = `<p class="text-xs text-app-muted py-2 text-center">Belum ada kategori.</p>`;
+      return;
+    }
+
+    container.innerHTML = state.categories.map(c => `
+      <div class="flex items-center justify-between p-2.5 rounded-xl border border-app-border bg-app-bg">
+        <div class="flex items-center space-x-2.5">
+          <div class="w-7 h-7 rounded-lg bg-white flex items-center justify-center text-mustard border border-app-border">
+            <i data-lucide="${escapeHtml(c.iconName || 'folder')}" class="w-3.5 h-3.5"></i>
+          </div>
+          <div>
+            <p class="text-xs font-semibold text-app-main">${escapeHtml(c.name)}</p>
+            <p class="text-[10px] text-app-muted">${escapeHtml(c.type)}</p>
+          </div>
+        </div>
+        <button type="button" onclick="handleDeleteCategory('${escapeHtml(c.id)}')"
+          class="p-1 text-app-muted hover:text-expense transition-colors" title="Hapus Kategori">
+          <i data-lucide="trash-2" class="w-4 h-4"></i>
+        </button>
+      </div>
+    `).join('');
+
+    if (window.lucide) lucide.createIcons();
+  }
+
+  async function handleAddCategory(e) {
+    e.preventDefault();
+    const nameInput = document.getElementById('cat-name');
+    const typeSelect = document.getElementById('cat-type');
+    const iconSelect = document.getElementById('cat-icon');
+    const submitBtn = document.getElementById('cat-submit-btn');
+
+    const name = nameInput.value.trim();
+    const type = typeSelect.value;
+    const iconName = iconSelect.value || 'folder';
+
+    if (!name) {
+      showToast('Nama kategori wajib diisi', 'error');
+      return;
+    }
+
+    submitBtn.disabled = true;
+    submitBtn.innerText = 'Menyimpan...';
+
+    try {
+      const jsonResult = await runGas('addCategoryForUser', {
+        userId: state.userId,
+        name,
+        type,
+        iconName
+      });
+
+      const parsedData = JSON.parse(jsonResult);
+      state.categories = parsedData.categories;
+      state.totalBalance = parsedData.totalBalance;
+      state.transactions = parsedData.transactions;
+
+      renderUI();
+      renderCategoriesList();
+      showToast('Kategori berhasil ditambahkan!');
+
+      nameInput.value = '';
+    } catch (err) {
+      showToast(err.message, 'error');
+    } finally {
+      submitBtn.disabled = false;
+      submitBtn.innerText = 'Simpan Kategori Baru';
+    }
+  }
+
+  async function handleDeleteCategory(categoryId) {
+    if (!confirm('Apakah Anda yakin ingin menghapus kategori ini?')) return;
+
+    try {
+      const jsonResult = await runGas('deleteCategoryForUser', {
+        userId: state.userId,
+        categoryId: categoryId
+      });
+
+      const parsedData = JSON.parse(jsonResult);
+      state.categories = parsedData.categories;
+      renderUI();
+      renderCategoriesList();
+      showToast('Kategori telah dihapus.');
+    } catch (err) {
+      showToast(err.message, 'error');
+    }
+  }
+
+  // --- Transaction Handlers ---
+  function setType(type) {
+    const typeInput = document.getElementById('tx-type');
+    const btnPengeluaran = document.getElementById('btn-type-pengeluaran');
+    const btnPemasukan = document.getElementById('btn-type-pemasukan');
+
+    typeInput.value = type;
+
+    if (type === 'Pengeluaran') {
+      btnPengeluaran.className = 'py-2 px-3 text-xs font-semibold rounded-lg transition-all flex items-center justify-center gap-1.5 bg-white text-expense shadow-sm border border-app-border';
+      btnPemasukan.className = 'py-2 px-3 text-xs font-semibold rounded-lg transition-all flex items-center justify-center gap-1.5 text-app-muted hover:text-income';
+    } else {
+      btnPemasukan.className = 'py-2 px-3 text-xs font-semibold rounded-lg transition-all flex items-center justify-center gap-1.5 bg-white text-income shadow-sm border border-app-border';
+      btnPengeluaran.className = 'py-2 px-3 text-xs font-semibold rounded-lg transition-all flex items-center justify-center gap-1.5 text-app-muted hover:text-expense';
+    }
+
+    renderCategoriesDropdown();
+  }
+
+  async function handleFormSubmit(e) {
+    e.preventDefault();
+
+    const type = document.getElementById('tx-type').value;
+    const date = document.getElementById('tx-date').value;
+    const amount = parseFloat(document.getElementById('tx-amount').value);
+    const category = document.getElementById('tx-category').value;
+    const description = document.getElementById('tx-desc').value.trim();
+    const submitBtn = document.getElementById('submit-btn');
+
+    if (!amount || amount <= 0) {
+      showToast('Nominal harus lebih besar dari 0', 'error');
+      return;
+    }
+    if (!description) {
+      showToast('Deskripsi wajib diisi', 'error');
+      return;
+    }
+
+    const payload = { userId: state.userId, type, date, amount, category, description };
+
+    // 1. Optimistic UI Update
+    const tempId = 'temp-' + Date.now();
+    const tempTx = {
+      id: tempId,
+      date: date,
+      description: description,
+      amount: amount,
+      type: type,
+      category: category,
+      createdAt: new Date().toISOString()
+    };
+
+    state.transactions.unshift(tempTx);
+    if (type === 'Pemasukan') {
+      state.totalBalance += amount;
+      state.totalIncome += amount;
+    } else {
+      state.totalBalance -= amount;
+      state.totalExpense += amount;
+    }
+
+    document.getElementById('balance-amount').innerText = formatIDR(state.totalBalance);
+    document.getElementById('total-income').innerText = formatIDR(state.totalIncome);
+    document.getElementById('total-expense').innerText = formatIDR(state.totalExpense);
+    renderTransactionsList(tempId);
+
+    submitBtn.disabled = true;
+    submitBtn.innerHTML = `
+      <i data-lucide="loader-2" class="w-4 h-4 animate-spin"></i>
+      <span>Menyimpan...</span>
+    `;
+    if (window.lucide) lucide.createIcons();
+
+    // 2. Silent Server Sync via Promise runGas
+    try {
+      const updatedJson = await runGas('addTransactionForUser', payload);
+      resetTxForm(submitBtn);
+      const parsedData = JSON.parse(updatedJson);
+      state.totalBalance = parsedData.totalBalance;
+      state.totalIncome = parsedData.totalIncome;
+      state.totalExpense = parsedData.totalExpense;
+      state.transactions = parsedData.transactions;
+      state.chartData = parsedData.chartData;
+      renderUI();
+      showToast('Transaksi berhasil disimpan!');
+    } catch (err) {
+      resetTxForm(submitBtn);
+      showToast('Gagal menyimpan: ' + err.message, 'error');
+      fetchData(); // Rollback to server truth
+    }
+  }
+
+  function resetTxForm(submitBtn) {
+    document.getElementById('tx-desc').value = '';
+    document.getElementById('tx-amount').value = '';
+    submitBtn.disabled = false;
+    submitBtn.innerHTML = `
+      <i data-lucide="plus" class="w-4 h-4"></i>
+      <span>Simpan Transaksi</span>
+    `;
+    if (window.lucide) lucide.createIcons();
+  }
+
+  function renderTransactionsList(highlightId = null) {
+    const container = document.getElementById('tx-list');
+    const emptyState = document.getElementById('list-empty-state');
+    const countBadge = document.getElementById('tx-count');
+
+    if (!container || !emptyState || !countBadge) return;
+
+    countBadge.innerText = `${state.transactions.length} transaksi`;
+
+    if (!state.transactions || state.transactions.length === 0) {
+      container.innerHTML = '';
+      emptyState.classList.remove('hidden');
+      return;
+    }
+
+    emptyState.classList.add('hidden');
+
+    container.innerHTML = state.transactions.map(tx => {
+      const isIncome = tx.type === 'Pemasukan';
+      const catObj = state.categories.find(c => String(c.name).trim().toLowerCase() === String(tx.category).trim().toLowerCase());
+      const iconName = catObj ? catObj.iconName : 'folder';
+      const amountPrefix = isIncome ? '+' : '-';
+      const amountColorClass = isIncome ? 'text-income font-semibold' : 'text-expense font-semibold';
+      const badgeBgClass = isIncome ? 'bg-income-bg text-income' : 'bg-expense-bg text-expense';
+      const isNew = tx.id === highlightId;
+      const highlightClass = isNew ? 'animate-row-highlight' : 'bg-white';
+
+      return `
+        <div class="flex items-center justify-between p-3 rounded-xl border border-app-border transition-all ${highlightClass}">
+          <div class="flex items-center space-x-3 min-w-0">
+            <div class="w-9 h-9 rounded-xl ${badgeBgClass} flex items-center justify-center shrink-0">
+              <i data-lucide="${escapeHtml(iconName)}" class="w-4 h-4"></i>
+            </div>
+            <div class="min-w-0">
+              <p class="text-xs font-semibold text-app-main truncate">${escapeHtml(tx.description)}</p>
+              <div class="flex items-center space-x-2 text-[11px] text-app-muted">
+                <span>${formatDateDisplay(tx.date)}</span>
+                <span>&bull;</span>
+                <span class="font-medium text-app-main">${escapeHtml(tx.category)}</span>
+              </div>
+            </div>
+          </div>
+          <div class="text-right shrink-0">
+            <p class="text-xs ${amountColorClass}">
+              ${amountPrefix} ${formatIDR(tx.amount)}
+            </p>
+          </div>
+        </div>
+      `;
+    }).join('');
+
+    if (window.lucide) lucide.createIcons();
+  }
+
+  // --- Chart.js Rendering ---
+  function renderChart() {
+    const canvas = document.getElementById('expense-chart');
+    if (!canvas) return;
+
+    const ctx = canvas.getContext('2d');
+    const chartEmptyState = document.getElementById('chart-empty-state');
+
+    const hasData = state.chartData && state.chartData.data && state.chartData.data.length > 0;
+
+    if (!hasData) {
+      if (chartInstance) {
+        chartInstance.destroy();
+        chartInstance = null;
+      }
+      if (chartEmptyState) chartEmptyState.classList.remove('hidden');
+      return;
+    }
+
+    if (chartEmptyState) chartEmptyState.classList.add('hidden');
+
+    if (chartInstance) {
+      chartInstance.destroy();
+    }
+
+    chartInstance = new Chart(ctx, {
+      type: 'doughnut',
+      data: {
+        labels: state.chartData.labels,
+        datasets: [{
+          data: state.chartData.data,
+          backgroundColor: state.chartData.colors,
+          borderWidth: 2,
+          borderColor: '#FFFFFF',
+          hoverOffset: 4
+        }]
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        cutout: '70%',
+        plugins: {
+          legend: {
+            position: 'bottom',
+            labels: {
+              boxWidth: 12,
+              padding: 12,
+              font: {
+                family: 'IBM Plex Sans',
+                size: 11
+              },
+              color: '#3D3A35'
+            }
+          },
+          tooltip: {
+            callbacks: {
+              label: function(context) {
+                const label = context.label || '';
+                const value = context.parsed || 0;
+                return ` ${label}: ${formatIDR(value)}`;
+              }
+            }
+          }
+        }
+      }
+    });
+  }
+
+  // --- Formatting Helpers ---
+  function formatIDR(amount) {
+    return new Intl.NumberFormat('id-ID', {
+      style: 'currency',
+      currency: 'IDR',
+      minimumFractionDigits: 0,
+      maximumFractionDigits: 0
+    }).format(amount);
+  }
+
+  function formatDateDisplay(dateStr) {
+    if (!dateStr) return '';
+    const date = new Date(dateStr);
+    if (isNaN(date.getTime())) return dateStr;
+    return date.toLocaleDateString('id-ID', {
+      day: 'numeric',
+      month: 'short',
+      year: 'numeric'
+    });
+  }
+
+  function showToast(msg, type = 'info') {
+    const toast = document.getElementById('toast');
+    const toastMsg = document.getElementById('toast-msg');
+    const toastIcon = document.getElementById('toast-icon');
+
+    if (!toast || !toastMsg || !toastIcon) return;
+
+    toastMsg.innerText = msg;
+
+    if (type === 'error') {
+      toastIcon.setAttribute('data-lucide', 'alert-circle');
+      toastIcon.className = 'w-4 h-4 text-expense';
+    } else {
+      toastIcon.setAttribute('data-lucide', 'check-circle');
+      toastIcon.className = 'w-4 h-4 text-mustard';
+    }
+    if (window.lucide) lucide.createIcons();
+
+    toast.classList.remove('translate-y-16', 'opacity-0', 'pointer-events-none');
+    toast.classList.add('translate-y-0', 'opacity-100');
+
+    setTimeout(() => {
+      toast.classList.remove('translate-y-0', 'opacity-100');
+      toast.classList.add('translate-y-16', 'opacity-0', 'pointer-events-none');
+    }, 3000);
+  }
+
+  function escapeHtml(text) {
+    if (!text) return '';
+    return String(text)
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;')
+      .replace(/'/g, '&#039;');
+  }
+</script>

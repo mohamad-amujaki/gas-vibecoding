@@ -1,0 +1,1844 @@
+<script>
+  // =====================================================================
+  // App state & helpers
+  // =====================================================================
+
+  const DISPLAY_URL = 'https://script.google.com/macros/s/AKfycby9NzcHb0SUVgbhglX0Rm4ZBUEjgNNDBNnlVJhTMY2hLdYdFzPdxDFBqLqVork2Cgb1rA/exec';
+
+  function openDisplayPage() {
+    const url = new URL(DISPLAY_URL);
+    url.searchParams.set('page', 'display');
+    window.open(url.toString(), '_blank', 'noopener');
+  }
+
+  const runGas = (funcName, ...args) => new Promise((resolve, reject) => {
+    if (typeof google !== 'undefined' && google.script && google.script.run) {
+      google.script.run
+        .withSuccessHandler(res => resolve(res))
+        .withFailureHandler(err => reject(new Error(err.message || err)))
+        [funcName](...args);
+    } else {
+      reject(new Error('Google Apps Script environment tidak tersedia.'));
+    }
+  });
+
+  const gas = (fn, payload = {}) =>
+    runGas(fn, { token: state.token, ...payload }).then(res => JSON.parse(res));
+
+  const state = {
+    token: null,
+    user: null,
+    view: 'auth',
+    polis: [],
+    dashboard: null,
+    statusList: [],
+    statusId: null,
+    loket: null,
+    loketPoli: 'all',
+    dokter: null,
+    admin: null,
+    adminTab: 'poli',
+    rs: { antrian: null, tanggal: null, jam: null },
+    wkl: { pasienId: null, tipe: 'umum' },
+    lastCreated: null
+  };
+
+  const STATUS_META = {
+    booking:   { label: 'Booking',   cls: 'bg-slate-100 text-slate-600 border-slate-200', icon: 'event_available' },
+    checkin:   { label: 'Check-in',  cls: 'bg-blue-50 text-blue-700 border-blue-200', icon: 'how_to_reg' },
+    dipanggil: { label: 'Dipanggil', cls: 'bg-green-100 text-green-700 border-green-300 animate-pulse-soft', icon: 'campaign' },
+    diperiksa: { label: 'Diperiksa', cls: 'bg-amber-50 text-amber-700 border-amber-200', icon: 'medical_services' },
+    selesai:   { label: 'Selesai',   cls: 'bg-emerald-600 text-white border-emerald-700', icon: 'check_circle' },
+    batal:     { label: 'Batal',     cls: 'bg-red-50 text-red-600 border-red-200', icon: 'cancel' }
+  };
+
+  const POLI_COLORS = ['#00A9A5', '#6FBE44', '#2D7DD2', '#E8930C', '#8B5CF6', '#D1495B'];
+
+  let chartTrend = null;
+  let chartPoli = null;
+  let chartTipe = null;
+
+  // =====================================================================
+  // Init
+  // =====================================================================
+  document.addEventListener('DOMContentLoaded', async () => {
+    initTipePasien('pegawai');
+    state.token = localStorage.getItem('upk_token');
+    if (state.token) {
+      try {
+        const res = await gas('validateSession', {});
+        if (res.valid) {
+          state.user = res.user;
+          gotoDashboard();
+          startPolling();
+          return;
+        }
+      } catch (e) { /* fallthrough */ }
+      localStorage.removeItem('upk_token');
+      state.token = null;
+    }
+    showView('auth');
+    loadLandingPolis();
+  });
+
+  function showView(name) {
+    state.view = name;
+    document.querySelectorAll('#view-auth, #view-pasien, #view-booking, #view-status, #view-loket, #view-dokter, #view-admin')
+      .forEach(v => v.classList.add('hidden'));
+    const el = document.getElementById('view-' + name);
+    if (el) {
+      el.classList.remove('hidden');
+      el.classList.remove('view-fade-in');
+      void el.offsetWidth;
+      el.classList.add('view-fade-in');
+    }
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  }
+
+  function gotoDashboard() {
+    const role = state.user && state.user.role;
+    if (role === 'pasien') {
+      document.getElementById('pasien-header-name').textContent = state.user.nama;
+      showView('pasien');
+      loadPasienDashboard();
+    } else if (role === 'petugas_loket') {
+      showView('loket');
+      loadLoket();
+    } else if (role === 'dokter') {
+      showView('dokter');
+      loadDokter();
+    } else if (role === 'admin') {
+      document.getElementById('admin-header-name').textContent = state.user.nama;
+      showView('admin');
+      loadAdmin();
+    } else {
+      showView('auth');
+      loadLandingPolis();
+    }
+  }
+
+  let pollingStarted = false;
+
+  // =====================================================================
+  // Polling (sesuai view aktif)
+  // =====================================================================
+  function startPolling() {
+    if (pollingStarted) return;
+    pollingStarted = true;
+    setInterval(() => {
+      if (!state.token) return;
+      if (state.view === 'pasien') loadPasienDashboard(true);
+      else if (state.view === 'status') loadStatus(true);
+      else if (state.view === 'loket') loadLoket(true);
+      else if (state.view === 'dokter') loadDokter(true);
+    }, 12000);
+  }
+
+  // =====================================================================
+  // Landing
+  // =====================================================================
+  async function loadLandingPolis() {
+    try {
+      const res = await runGas('getDisplayData', {}).then(JSON.parse);
+      const grid = document.getElementById('landing-polis');
+      grid.innerHTML = res.polis.map((p, i) => `
+        <div class="bg-white rounded-2xl border border-line shadow-soft p-4 space-y-2">
+          <div class="w-9 h-9 rounded-xl ${i % 2 === 0 ? 'bg-primary-light text-primary' : 'bg-secondary-light text-secondary'} flex items-center justify-center">
+            <span class="material-symbols-outlined text-lg">${i === 0 ? 'stethoscope' : 'medical_services'}</span>
+          </div>
+          <p class="text-fluid-2 font-bold">${escapeHtml(p.nama)}</p>
+          <div class="flex items-center gap-1 text-fluid-1 text-ink-muted">
+            <span class="material-symbols-outlined text-fluid-2">campaign</span>
+            ${p.sedangDipanggil ? `<span class="font-bold text-green-700">${escapeHtml(p.sedangDipanggil.no)}</span>` : '<span>Belum ada panggilan</span>'}
+          </div>
+        </div>
+      `).join('');
+    } catch (e) { /* landing tetap tampil apa adanya */ }
+  }
+
+  // =====================================================================
+  // Auth
+  // =====================================================================
+  let regTipe = 'pegawai';
+
+  function openAuthTab(mode) {
+    const loginTab = document.getElementById('auth-tab-login');
+    const regTab = document.getElementById('auth-tab-register');
+    const loginPanel = document.getElementById('auth-panel-login');
+    const regPanel = document.getElementById('auth-panel-register');
+    if (mode === 'login') {
+      loginTab.className = 'py-2 text-fluid-2 font-semibold rounded-lg bg-white text-ink shadow-sm border border-line transition-all';
+      regTab.className = 'py-2 text-fluid-2 font-semibold rounded-lg text-ink-muted hover:text-primary transition-all';
+      loginPanel.classList.remove('hidden');
+      regPanel.classList.add('hidden');
+    } else {
+      regTab.className = 'py-2 text-fluid-2 font-semibold rounded-lg bg-white text-ink shadow-sm border border-line transition-all';
+      loginTab.className = 'py-2 text-fluid-2 font-semibold rounded-lg text-ink-muted hover:text-primary transition-all';
+      regPanel.classList.remove('hidden');
+      loginPanel.classList.add('hidden');
+    }
+    document.getElementById('auth-card').scrollIntoView({ behavior: 'smooth', block: 'center' });
+  }
+
+  function initTipePasien(tipe) {
+    regTipe = tipe;
+    document.querySelectorAll('#reg-tipe-wrap button').forEach(b => {
+      const active = b.dataset.tipe === tipe;
+      b.className = active
+        ? 'py-2 text-fluid-1 font-semibold rounded-lg transition-all inline-flex items-center justify-center gap-1 bg-white text-primary shadow-sm border border-primary'
+        : 'py-2 text-fluid-1 font-semibold rounded-lg transition-all inline-flex items-center justify-center gap-1 text-ink-muted';
+    });
+    document.getElementById('reg-identitas-label').textContent = tipe === 'pegawai' ? 'NIP' : 'NIK';
+    document.getElementById('reg-unit-wrap').classList.toggle('hidden', tipe !== 'pegawai');
+  }
+
+  function setTipePasien(tipe) { initTipePasien(tipe); }
+
+  function setAuthBusy(busy, mode) {
+    const btn = document.getElementById(mode === 'login' ? 'btn-login' : 'btn-register');
+    btn.disabled = busy;
+    btn.classList.toggle('opacity-60', busy);
+    btn.innerHTML = busy
+      ? '<span class="material-symbols-outlined animate-spin text-base">autorenew</span> Memproses...'
+      : mode === 'login'
+        ? '<span class="material-symbols-outlined">login</span> Masuk ke Akun'
+        : '<span class="material-symbols-outlined">how_to_reg</span> Daftar Akun Baru';
+  }
+
+  async function handleLogin(e) {
+    e.preventDefault();
+    const username = document.getElementById('login-username').value.trim();
+    const password = document.getElementById('login-password').value.trim();
+    if (!username || !password) return showToast('Username dan password wajib diisi.', 'error');
+    setAuthBusy(true, 'login');
+    try {
+      const res = await runGas('loginUser', { username, password }).then(JSON.parse);
+      state.token = res.token;
+      state.user = res.user;
+      localStorage.setItem('upk_token', res.token);
+      document.getElementById('login-username').value = '';
+      document.getElementById('login-password').value = '';
+      showToast('Selamat datang, ' + res.user.nama + '!');
+      gotoDashboard();
+      startPolling();
+    } catch (err) {
+      showToast(err.message, 'error');
+    } finally {
+      setAuthBusy(false, 'login');
+    }
+  }
+
+  async function handleRegister(e) {
+    e.preventDefault();
+    const payload = {
+      nama: document.getElementById('reg-nama').value.trim(),
+      tipePasien: regTipe,
+      identitas: document.getElementById('reg-identitas').value.trim(),
+      unitKerja: document.getElementById('reg-unit').value.trim(),
+      noHp: document.getElementById('reg-hp').value.trim(),
+      email: document.getElementById('reg-email').value.trim(),
+      username: document.getElementById('reg-username').value.trim(),
+      password: document.getElementById('reg-password').value.trim()
+    };
+    setAuthBusy(true, 'register');
+    try {
+      const res = await runGas('registerUser', payload).then(JSON.parse);
+      state.token = res.token;
+      state.user = res.user;
+      localStorage.setItem('upk_token', res.token);
+      document.querySelectorAll('#auth-panel-register input').forEach(i => i.value = '');
+      showToast('Akun berhasil dibuat!');
+      gotoDashboard();
+      startPolling();
+    } catch (err) {
+      showToast(err.message, 'error');
+    } finally {
+      setAuthBusy(false, 'register');
+    }
+  }
+
+  async function handleLogout() {
+    try { await runGas('logoutUser', { token: state.token }); } catch (e) { /* ignore */ }
+    localStorage.removeItem('upk_token');
+    state.token = null;
+    state.user = null;
+    showView('auth');
+    loadLandingPolis();
+    showToast('Anda telah keluar.');
+  }
+
+  // =====================================================================
+  // Dashboard Pasien
+  // =====================================================================
+  async function loadPasienDashboard(silent) {
+    try {
+      const res = await gas('getPatientDashboard', {});
+      state.dashboard = res;
+      renderPasienDashboard();
+    } catch (err) {
+      if (!silent) showToast(err.message, 'error');
+    }
+  }
+
+  function renderPasienDashboard() {
+    const d = state.dashboard;
+    if (!d) return;
+
+    // Next booking card
+    const nextEl = document.getElementById('pasien-next');
+    if (d.nextBooking) {
+      const a = d.nextBooking;
+      const canChange = isChangeable(a);
+      nextEl.innerHTML = `
+        <div class="flex flex-wrap items-center gap-4">
+          <div class="w-16 h-16 rounded-2xl bg-primary-light text-primary flex flex-col items-center justify-center">
+            <span class="text-[9px] font-bold uppercase">${escapeHtml(a.poliKode)}</span>
+            <span class="text-lg font-extrabold leading-tight">${escapeHtml(a.noAntrian)}</span>
+          </div>
+          <div class="flex-1 min-w-[180px] space-y-1">
+            <p class="text-sm font-bold">${escapeHtml(a.poliNama)}</p>
+            <p class="text-fluid-2 text-ink-muted flex items-center gap-1.5">
+              <span class="material-symbols-outlined text-sm">calendar_month</span>${fmtDateTime(a.tanggal, a.jamBooking)}
+            </p>
+            <p class="text-fluid-2 text-ink-muted">${a.jenis === 'booking' ? 'Booking terjadwal' : 'Walk-in'} &middot; ${escapeHtml(a.keluhan) || '—'}</p>
+          </div>
+          ${statusBadge(a.status)}
+        </div>
+        <div class="flex flex-wrap gap-2 pt-3 border-t border-line">
+          <button type="button" onclick="openStatusView('${a.id}')"
+            class="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-lg bg-primary hover:bg-primary-dark text-white text-fluid-2 font-bold transition-all shadow-soft">
+            <span class="material-symbols-outlined text-base">graphic_eq</span> Lihat Status
+          </button>
+          <button type="button" onclick="openRescheduleModal('${a.id}')" ${canChange ? '' : 'disabled title="Penjadwalan ulang hanya bisa dilakukan minimal 2 jam sebelum jadwal"'}
+            class="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-lg bg-white border border-line text-ink text-fluid-2 font-bold transition-all hover:bg-mist disabled:opacity-40 disabled:cursor-not-allowed">
+            <span class="material-symbols-outlined text-base">update</span> Jadwalkan Ulang
+          </button>
+          <button type="button" onclick="cancelBooking('${a.id}')" ${canChange ? '' : 'disabled title="Pembatalan hanya bisa dilakukan minimal 2 jam sebelum jadwal"'}
+            class="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-lg bg-white border border-line text-red-600 text-fluid-2 font-bold transition-all hover:bg-red-50 disabled:opacity-40 disabled:cursor-not-allowed">
+            <span class="material-symbols-outlined text-base">cancel</span> Batalkan
+          </button>
+        </div>
+      `;
+    } else {
+      nextEl.innerHTML = `
+        <div class="text-center py-6 space-y-2">
+          <span class="material-symbols-outlined text-4xl text-ink-faint">event_busy</span>
+          <p class="text-sm font-semibold text-ink-soft">Tidak ada booking aktif</p>
+          <p class="text-fluid-2 text-ink-muted">Daftarkan antrian untuk memulai layanan.</p>
+          <button type="button" onclick="openBookingFlow()"
+            class="inline-flex items-center gap-1.5 px-4 py-2.5 rounded-xl bg-primary hover:bg-primary-dark text-white text-fluid-2 font-bold transition-all shadow-soft">
+            <span class="material-symbols-outlined text-base">add</span> Daftar Antrian Baru
+          </button>
+        </div>
+      `;
+    }
+
+    // Active list
+    const activeEl = document.getElementById('pasien-active-list');
+    document.getElementById('pasien-active-count').textContent = d.active.length + ' aktif';
+    const activeOthers = d.active.filter(a => a.id !== (d.nextBooking && d.nextBooking.id));
+    if (activeOthers.length === 0) {
+      activeEl.innerHTML = `<p class="text-fluid-2 text-ink-faint text-center py-3">Tidak ada antrian aktif lainnya.</p>`;
+    } else {
+      activeEl.innerHTML = activeOthers.map(a => {
+        const canChange = isChangeable(a);
+        return `
+        <div class="flex flex-wrap items-center justify-between gap-3 p-3 rounded-xl border border-line bg-mist/60">
+          <div class="flex items-center gap-3 min-w-0">
+            <div class="w-11 h-11 rounded-xl bg-white border border-line flex flex-col items-center justify-center shrink-0">
+              <span class="text-[8px] font-bold text-ink-muted">${escapeHtml(a.poliKode)}</span>
+              <span class="text-fluid-2 font-extrabold text-primary">${escapeHtml(a.noAntrian)}</span>
+            </div>
+            <div class="min-w-0">
+              <p class="text-fluid-2 font-bold truncate">${escapeHtml(a.poliNama)}</p>
+              <p class="text-fluid-1 text-ink-muted">${fmtDateTime(a.tanggal, a.jamBooking)}</p>
+            </div>
+          </div>
+          <div class="flex items-center gap-1.5">
+            ${statusBadge(a.status)}
+            <button type="button" onclick="openStatusView('${a.id}')" title="Lihat status"
+              class="w-8 h-8 rounded-lg bg-white border border-line text-ink-muted hover:text-primary flex items-center justify-center">
+              <span class="material-symbols-outlined text-base">graphic_eq</span>
+            </button>
+            <button type="button" onclick="openRescheduleModal('${a.id}')" ${canChange ? '' : 'disabled title="Minimal 2 jam sebelum jadwal"'}
+              class="w-8 h-8 rounded-lg bg-white border border-line text-ink-muted hover:text-primary flex items-center justify-center disabled:opacity-30">
+              <span class="material-symbols-outlined text-base">update</span>
+            </button>
+            <button type="button" onclick="cancelBooking('${a.id}')" ${canChange ? '' : 'disabled title="Minimal 2 jam sebelum jadwal"'}
+              class="w-8 h-8 rounded-lg bg-white border border-line text-ink-muted hover:text-red-600 flex items-center justify-center disabled:opacity-30">
+              <span class="material-symbols-outlined text-base">cancel</span>
+            </button>
+          </div>
+        </div>`;
+      }).join('');
+    }
+
+    // History
+    const histEl = document.getElementById('pasien-history-list');
+    document.getElementById('pasien-history-count').textContent = d.history.length + ' kunjungan';
+    if (d.history.length === 0) {
+      histEl.innerHTML = `<p class="text-fluid-2 text-ink-faint text-center py-3">Belum ada riwayat kunjungan.</p>`;
+    } else {
+      histEl.innerHTML = `
+        <div class="space-y-2">
+          ${d.history.map(h => `
+          <div class="flex items-center justify-between gap-3 p-3 rounded-xl border border-line">
+            <div class="flex items-center gap-3 min-w-0">
+              <div class="w-9 h-9 rounded-xl bg-mist text-primary flex items-center justify-center shrink-0">
+                <span class="material-symbols-outlined text-lg">${h.status === 'selesai' ? 'medication' : 'cancel'}</span>
+              </div>
+              <div class="min-w-0">
+                <p class="text-fluid-2 font-bold truncate">${escapeHtml(h.poliNama)} <span class="text-ink-muted font-medium">· ${escapeHtml(h.noAntrian)}</span></p>
+                <p class="text-fluid-1 text-ink-muted">${fmtDate(h.tanggal)} &middot; ${escapeHtml(h.keluhan) || '—'}</p>
+              </div>
+            </div>
+            ${statusBadge(h.status)}
+          </div>`).join('')}
+        </div>`;
+    }
+  }
+
+  function isChangeable(a) {
+    if (!a || a.status !== 'booking') return false;
+    const today = todayStr();
+    if (a.tanggal > today) return true;
+    if (a.tanggal < today) return false;
+    const diffH = hhmmToMin(a.jamBooking) - hhmmToMin(nowHHmm());
+    return diffH >= 120;
+  }
+
+  async function cancelBooking(id) {
+    if (!confirm('Batalkan antrian ini? Tindakan tidak dapat dibatalkan.')) return;
+    try {
+      await gas('cancelBooking', { idAntrian: id });
+      showToast('Antrian berhasil dibatalkan.');
+      loadPasienDashboard();
+    } catch (err) {
+      showToast(err.message, 'error');
+    }
+  }
+
+  // --- Reschedule modal ---
+  async function openRescheduleModal(id) {
+    const antrian = (state.dashboard?.active || []).find(a => a.id === id);
+    if (!antrian) return showToast('Antrian tidak ditemukan.', 'error');
+    state.rs = { antrian, tanggal: null, jam: null };
+    document.getElementById('rs-info').innerHTML = `
+      <p><span class="font-bold">${escapeHtml(antrian.poliNama)}</span> &middot; ${escapeHtml(antrian.noAntrian)}</p>
+      <p>Jadwal saat ini: ${fmtDateTime(antrian.tanggal, antrian.jamBooking)}</p>`;
+    document.getElementById('btn-rs-submit').disabled = true;
+    document.getElementById('rs-slots').innerHTML = `<p class="text-fluid-2 text-ink-faint">Pilih tanggal baru terlebih dahulu.</p>`;
+    openModal('modal-reschedule');
+    try {
+      const res = await gas('getDateOptions', { poliId: antrian.poliId });
+      renderRsDates(res.options);
+    } catch (err) {
+      showToast(err.message, 'error');
+    }
+  }
+
+  function renderRsDates(options) {
+    const wrap = document.getElementById('rs-date-options');
+    wrap.innerHTML = options.map(o => {
+      const enabled = o.adaJadwal && o.sisaKuota > 0;
+      const selected = state.rs.tanggal === o.tanggal;
+      return `
+      <button type="button" ${enabled ? '' : 'disabled'} onclick="selectRsDate('${o.tanggal}')"
+        class="text-left p-2.5 rounded-xl border ${selected ? 'border-primary bg-primary-light text-primary' : 'border-line bg-white'} ${enabled ? 'hover:border-primary' : 'opacity-40 cursor-not-allowed'} transition-all">
+        <p class="text-fluid-1 font-bold">${o.namaHari}</p>
+        <p class="text-fluid-2 font-extrabold">${shortDate(o.tanggal)}</p>
+        <p class="text-[9px] ${o.sisaKuota > 0 ? 'text-secondary-dark' : 'text-red-500'}">${o.sisaKuota > 0 ? o.sisaKuota + ' sisa' : (o.adaJadwal ? 'penuh' : 'tanpa jadwal')}</p>
+      </button>`;
+    }).join('');
+  }
+
+  async function selectRsDate(tanggal) {
+    state.rs.tanggal = tanggal;
+    state.rs.jam = null;
+    renderRsDates(state.rs.options || []);
+    document.getElementById('rs-slots').innerHTML = `<p class="text-fluid-2 text-ink-faint">Memuat slot jam...</p>`;
+    try {
+      const res = await gas('getSlots', { poliId: state.rs.antrian.poliId, tanggal });
+      state.rs.options = state.rs.options || [];
+      renderRsDates(state.rs.options);
+      document.getElementById('rs-slots').innerHTML = res.penuh
+        ? `<p class="text-fluid-2 text-red-500 w-full">Kuota penuh pada tanggal ini. Silakan pilih tanggal lain.</p>`
+        : res.slots.map(s => `
+            <button type="button" onclick="selectRsSlot('${s.waktu}')"
+              class="px-3 py-2 rounded-lg border ${state.rs.jam === s.waktu ? 'border-primary bg-primary-light text-primary' : 'border-line bg-white hover:border-primary'} text-fluid-2 font-bold transition-all">
+              ${s.waktu}
+            </button>`).join('');
+      document.getElementById('btn-rs-submit').disabled = !state.rs.jam;
+    } catch (err) {
+      showToast(err.message, 'error');
+    }
+  }
+
+  function selectRsSlot(jam) {
+    state.rs.jam = jam;
+    document.getElementById('rs-slots').querySelectorAll('button').forEach(b => {
+      b.className = 'px-3 py-2 rounded-lg border text-fluid-2 font-bold transition-all ' + (b.textContent.trim() === jam ? 'border-primary bg-primary-light text-primary' : 'border-line bg-white hover:border-primary');
+    });
+    document.getElementById('btn-rs-submit').disabled = !jam;
+  }
+
+  async function submitReschedule() {
+    if (!state.rs.tanggal || !state.rs.jam) return;
+    try {
+      await gas('rescheduleBooking', { idAntrian: state.rs.antrian.id, tanggal: state.rs.tanggal, jamBooking: state.rs.jam });
+      closeModal('modal-reschedule');
+      showToast('Jadwal berhasil diperbarui.');
+      loadPasienDashboard();
+    } catch (err) {
+      showToast(err.message, 'error');
+    }
+  }
+
+  // =====================================================================
+  // Booking flow
+  // =====================================================================
+  const bookingState = {
+    jenis: null,
+    poliId: null,
+    poli: null,
+    tanggal: null,
+    jamBooking: null,
+    keluhan: '',
+    options: [],
+    calOffset: 0,
+    calMonth: null,
+    selected: null
+  };
+
+  async function openBookingFlow() {
+    bookingState.jenis = null;
+    bookingState.poliId = null;
+    bookingState.tanggal = null;
+    bookingState.jamBooking = null;
+    bookingState.selected = null;
+    bookingState.keluhan = '';
+    bookingState.options = [];
+    const keluhanInput = document.getElementById('bk-keluhan');
+    keluhanInput.value = '';
+    document.getElementById('bk-keluhan-count').textContent = '0';
+    setBkJenis(null);
+    document.getElementById('bk-next-3').disabled = true;
+    if (document.getElementById('bk-next-hint-text')) document.getElementById('bk-next-hint-text').textContent = '';
+    showView('booking');
+    renderBkIndicator();
+    goBkStep(1);
+    if (!state.polis.length) {
+      try {
+        const res = await gas('getPoliData', {});
+        state.polis = res.polis;
+      } catch (e) { showToast(e.message, 'error'); }
+    }
+  }
+
+  function closeBookingFlow() { gotoDashboard(); }
+
+  function renderBkIndicator() {
+    const steps = ['Jenis', 'Poli', 'Jadwal', 'Konfirmasi'];
+    const active = Math.min(bookingState.jenis === 'walkin' ? 1 : 2, 3);
+    document.getElementById('bk-step-indicator').innerHTML =
+      steps.map((s, i) => {
+        const done = i < active;
+        const cur = i === active;
+        return `
+        <div class="flex items-center gap-1.5">
+          <span class="w-5 h-5 rounded-full flex items-center justify-center text-fluid-1 font-extrabold ${done ? 'bg-primary text-white' : cur ? 'bg-primary-light text-primary border border-primary' : 'bg-mist text-ink-faint border border-line'}">
+            ${done ? '<span class="material-symbols-outlined text-fluid-1">check</span>' : i + 1}
+          </span>
+          <span class="${cur ? 'text-ink font-bold' : done ? 'text-primary' : 'text-ink-faint'}">${s}</span>
+        </div>${i < steps.length - 1 ? '<span class="flex-1 h-px bg-line"></span>' : ''}`;
+      }).join('');
+  }
+
+  function setBkJenis(jenis) {
+    bookingState.jenis = jenis;
+    const b = document.getElementById('bk-jenis-booking');
+    const w = document.getElementById('bk-jenis-walkin');
+    const base = 'p-4 rounded-xl border-2 text-left transition-all ';
+    b.className = base + (jenis === 'booking' ? 'border-primary bg-primary-light/60' : 'border-line bg-white');
+    w.className = base + (jenis === 'walkin' ? 'border-primary bg-primary-light/60' : 'border-line bg-white');
+    b.querySelector('.material-symbols-outlined').className = 'material-symbols-outlined ' + (jenis === 'booking' ? 'text-primary' : 'text-ink-muted');
+    w.querySelector('.material-symbols-outlined').className = 'material-symbols-outlined ' + (jenis === 'walkin' ? 'text-primary' : 'text-ink-muted');
+    document.getElementById('bk-next-1').disabled = !jenis;
+  }
+
+  async function goBkStep(n) {
+    [1, 2, 3, 4, 5].forEach(i => {
+      document.getElementById('bk-step-' + i).classList.add('hidden');
+    });
+    if (n === 1) {
+      document.getElementById('bk-step-1').classList.remove('hidden');
+    } else if (n === 2) {
+      renderPoliGrid();
+      document.getElementById('bk-step-2').classList.remove('hidden');
+    } else if (n === 3) {
+      if (bookingState.jenis === 'booking') {
+        if (!bookingState.options.length) await loadBkOptions();
+        bookingState.tanggal = null;
+        bookingState.jamBooking = null;
+        bookingState.selected = null;
+        document.getElementById('bk-calendar-wrap').classList.remove('hidden');
+        document.getElementById('bk-date-info').classList.remove('hidden');
+        renderCalendar();
+      } else {
+        document.getElementById('bk-calendar-wrap').classList.add('hidden');
+        renderWalkinInfo();
+      }
+      updateBkNext();
+      document.getElementById('bk-step-3').classList.remove('hidden');
+    } else if (n === 4) {
+      renderBkConfirm();
+      document.getElementById('bk-step-4').classList.remove('hidden');
+    } else if (n === 5) {
+      document.getElementById('bk-step-indicator').classList.add('hidden');
+      document.getElementById('bk-step-5').classList.remove('hidden');
+    }
+    if (n !== 5) document.getElementById('bk-step-indicator').classList.remove('hidden');
+    renderBkIndicator();
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  }
+
+  function renderPoliGrid() {
+    const grid = document.getElementById('bk-poli-grid');
+    grid.innerHTML = (state.polis || []).map((p, i) => `
+      <button type="button" onclick="selectBkPoli('${p.id}')"
+        class="text-left p-4 rounded-2xl border-2 ${bookingState.poliId === p.id ? 'border-primary bg-primary-light/60' : 'border-line bg-white hover:border-primary/50'} transition-all space-y-2">
+        <div class="flex items-start justify-between">
+          <div class="w-10 h-10 rounded-xl ${i % 2 === 0 ? 'bg-primary-light text-primary' : 'bg-secondary-light text-secondary'} flex items-center justify-center">
+            <span class="material-symbols-outlined">${i % 2 === 0 ? 'stethoscope' : 'medical_services'}</span>
+          </div>
+          <span class="text-fluid-1 font-bold ${p.jenis === 'umum' ? 'bg-secondary-light text-secondary-dark' : 'bg-amber-50 text-amber-700'} px-2 py-0.5 rounded-full">
+            ${p.jenis === 'umum' ? 'Umum' : 'Spesialis'}
+          </span>
+        </div>
+        <div>
+          <p class="text-sm font-extrabold">${escapeHtml(p.nama)}</p>
+          <p class="text-fluid-1 text-ink-muted">Kuota ${p.sisaHariIni}/${p.kuotaHarian} tersisa hari ini</p>
+        </div>
+        ${p.jenis === 'spesialis' ? `
+        <div class="flex flex-wrap gap-1">
+          ${p.jadwal.slice(0, 4).map(j => `<span class="text-[9px] font-semibold text-ink-muted bg-mist border border-line px-1.5 py-0.5 rounded">${j.hari} · ${escapeHtml(j.dokter.split(',')[0])}</span>`).join('')}
+          ${p.jadwal.length > 4 ? `<span class="text-[9px] font-semibold text-ink-faint">+${p.jadwal.length - 4}</span>` : ''}
+        </div>` : ''}
+      </button>
+    `).join('');
+  }
+
+  async function selectBkPoli(poliId) {
+    bookingState.poliId = poliId;
+    bookingState.poli = state.polis.find(p => p.id === poliId);
+    bookingState.tanggal = null;
+    bookingState.jamBooking = null;
+    bookingState.selected = null;
+    renderPoliGrid();
+
+    if (bookingState.jenis === 'booking') {
+      await loadBkOptions();
+      goBkStep(3);
+    } else {
+      goBkStep(3);
+    }
+  }
+
+  async function loadBkOptions() {
+    if (!bookingState.poliId) return;
+    try {
+      const res = await gas('getDateOptions', { poliId: bookingState.poliId });
+      bookingState.options = res.options;
+      const base = new Date();
+      bookingState.calOffset = 0;
+      bookingState.calMonth = new Date(base.getFullYear(), base.getMonth(), 1);
+    } catch (e) { showToast(e.message, 'error'); }
+  }
+
+  // ---- Calendar ----
+  function bkCalShift(d) {
+    bookingState.calOffset = Math.min(2, Math.max(0, bookingState.calOffset + d));
+    const base = new Date();
+    bookingState.calMonth = new Date(base.getFullYear(), base.getMonth() + bookingState.calOffset, 1);
+    renderCalendar();
+  }
+
+  function renderCalendar() {
+    const m = bookingState.calMonth;
+    if (!m) return;
+    const today = todayStr();
+    const optMap = {};
+    (bookingState.options || []).forEach(o => { optMap[o.tanggal] = o; });
+
+    document.getElementById('bk-cal-month').textContent = m.toLocaleDateString('id-ID', { month: 'long', year: 'numeric' });
+
+    const firstIdx = (m.getDay() + 6) % 7;
+    const daysInMonth = new Date(m.getFullYear(), m.getMonth() + 1, 0).getDate();
+    let cells = '';
+    for (let i = 0; i < firstIdx; i++) cells += '<div></div>';
+
+    for (let day = 1; day <= daysInMonth; day++) {
+      const date = new Date(m.getFullYear(), m.getMonth(), day);
+      const tanggal = toDateStr(date);
+      const dow = (date.getDay() + 6) % 7;
+      const isWeekend = dow >= 5;
+      const isPast = tanggal < today;
+      const opt = optMap[tanggal];
+      const selected = bookingState.tanggal === tanggal;
+
+      let cellClass = 'h-12 md:h-14 rounded-lg border flex flex-col items-center justify-center leading-none transition-all ';
+      let disabled = '';
+      if (isWeekend || isPast) {
+        cellClass += 'bg-white border-line opacity-35 cursor-not-allowed text-ink-faint';
+        disabled = 'disabled';
+      } else if (!opt || !opt.adaJadwal) {
+        cellClass += 'bg-white border-line opacity-50 cursor-not-allowed text-ink-faint';
+        disabled = 'disabled';
+      } else if (opt.sisaKuota <= 0) {
+        cellClass += selected ? 'bg-primary text-white border-primary shadow-soft' : 'bg-red-50 text-red-500 border-red-200 hover:border-red-400';
+      } else {
+        cellClass += selected ? 'bg-primary text-white border-primary shadow-soft' : 'bg-white border-line hover:border-primary text-ink';
+      }
+
+      let extra = '';
+      if (opt && !isWeekend && !isPast) {
+        if (!opt.adaJadwal) extra = '<p class="text-[8px] text-ink-faint">—</p>';
+        else if (opt.sisaKuota <= 0) extra = '<p class="text-[8px] font-bold text-red-500">penuh</p>';
+        else extra = `<p class="text-[8px] font-bold ${selected ? 'text-white' : 'text-secondary-dark'}">${opt.sisaKuota}</p>`;
+      }
+
+      cells += `
+        <button type="button" ${disabled} onclick="selectBkDate('${tanggal}')" class="${cellClass}">
+          <span class="text-fluid-2 font-bold">${day}</span>
+          ${extra || ''}
+        </button>`;
+    }
+    document.getElementById('bk-cal-grid').innerHTML = cells;
+  }
+
+  async function selectBkDate(tanggal) {
+    if (bookingState.tanggal === tanggal) {
+      bookingState.tanggal = null;
+      bookingState.jamBooking = null;
+      bookingState.selected = null;
+      renderCalendar();
+      renderDateInfo();
+      updateBkNext();
+      return;
+    }
+    bookingState.tanggal = tanggal;
+    bookingState.jamBooking = null;
+    renderCalendar();
+    renderDateInfo('loading');
+    try {
+      const res = await gas('getSlots', { poliId: bookingState.poliId, tanggal });
+      bookingState.selected = res;
+      renderSlots();
+    } catch (err) {
+      renderDateInfo('');
+      showToast(err.message, 'error');
+    }
+    updateBkNext();
+  }
+
+  function renderDateInfo(mode) {
+    const el = document.getElementById('bk-date-info');
+    const a = bookingState.selected;
+    if (mode === 'loading') {
+      el.className = 'text-fluid-2 text-ink-faint bg-mist rounded-xl p-3 border border-line';
+      el.innerHTML = 'Memuat kuota & slot jam...';
+      return;
+    }
+    if (!bookingState.tanggal) {
+      el.className = 'hidden';
+      el.innerHTML = '';
+      return;
+    }
+    if (a) {
+      el.className = 'text-fluid-2 bg-mist rounded-xl p-3 border border-line space-y-1';
+      el.innerHTML = `
+        <p class="font-bold">${a.namaHari}, ${fmtDate(a.tanggal)}</p>
+        <p class="${a.penuh ? 'text-red-600 font-semibold' : 'text-secondary-dark font-semibold'}">
+          ${a.penuh ? 'Kuota poli penuh pada tanggal ini.' : a.sisaKuota + ' dari ' + a.kuota + ' kuota tersedia.'}
+        </p>`;
+    } else {
+      el.className = 'hidden';
+      el.innerHTML = '';
+    }
+  }
+
+  function renderSlots() {
+    const wrap = document.getElementById('bk-slots');
+    const a = bookingState.selected;
+    if (!a) { wrap.className = 'hidden'; wrap.innerHTML = ''; return; }
+    wrap.className = 'space-y-2';
+    if (a.penuh) {
+      wrap.innerHTML = `
+        <div class="flex items-start gap-2 p-3 rounded-xl bg-red-50 border border-red-200 text-red-700">
+          <span class="material-symbols-outlined text-base">warning</span>
+          <div class="text-fluid-2 space-y-2">
+            <p class="font-semibold">Kuota ${escapeHtml(a.poli.nama)} sudah penuh pada ${fmtDate(a.tanggal)}.</p>
+            ${a.saran ? `<button type="button" onclick="selectBkDate('${a.saran.tanggal}')" class="px-3 py-1.5 rounded-lg bg-white border border-red-200 font-bold hover:bg-red-100">
+              Coba tanggal ${shortDate(a.saran.tanggal)} (${a.saran.sisaKuota} sisa)</button>` : ''}
+          </div>
+        </div>`;
+      return;
+    }
+    wrap.innerHTML = `
+      <p class="text-fluid-2 font-semibold text-ink-muted">Pilih Slot Jam</p>
+      <div class="flex flex-wrap gap-2">
+        ${a.slots.map(s => `
+          <button type="button" onclick="selectBkSlot('${s.waktu}')"
+            class="px-3.5 py-2 rounded-lg border text-fluid-2 font-bold transition-all ${bookingState.jamBooking === s.waktu ? 'border-primary bg-primary-light text-primary' : 'border-line bg-white hover:border-primary'}">
+            ${s.waktu}
+          </button>`).join('')}
+      </div>`;
+  }
+
+  function selectBkSlot(jam) {
+    bookingState.jamBooking = jam;
+    document.getElementById('bk-slots').querySelectorAll('button').forEach(b => {
+      b.className = 'px-3.5 py-2 rounded-lg border text-fluid-2 font-bold transition-all ' + (b.textContent.trim() === jam ? 'border-primary bg-primary-light text-primary' : 'border-line bg-white hover:border-primary');
+    });
+    updateBkNext();
+  }
+
+  function renderWalkinInfo() {
+    const p = bookingState.poli;
+    const el = document.getElementById('bk-date-info');
+    el.className = 'text-fluid-2 bg-mist rounded-xl p-3 border border-line space-y-1';
+    el.innerHTML = `
+      <p class="font-bold">Walk-in Hari Ini — ${escapeHtml(p ? p.nama : '')}</p>
+      <p class="${p && p.sisaHariIni > 0 ? 'text-secondary-dark font-semibold' : 'text-red-600 font-semibold'}">
+        ${p && p.sisaHariIni > 0 ? p.sisaHariIni + ' kuota tersisa hari ini.' : 'Kuota poli penuh hari ini. Silakan pilih poli lain.'}
+      </p>
+      <p class="text-ink-faint">Slot jam menyesuaikan antrian yang sedang berjalan.</p>`;
+  }
+
+  function updateBkNext() {
+    const btn = document.getElementById('bk-next-3');
+    const hint = document.getElementById('bk-next-hint-text');
+    const keluhanOk = document.getElementById('bk-keluhan').value.trim().length > 0;
+    let ok = false;
+    let msg = '';
+    if (bookingState.jenis === 'walkin') {
+      ok = keluhanOk;
+      if (!ok) msg = 'Isi keluhan singkat untuk melanjutkan.';
+    } else {
+      ok = !!bookingState.tanggal && !!bookingState.jamBooking && keluhanOk;
+      if (!bookingState.tanggal) msg = 'Pilih tanggal di kalender.';
+      else if (!bookingState.jamBooking) msg = 'Pilih slot jam dokter.';
+      else if (!keluhanOk) msg = 'Isi keluhan singkat untuk melanjutkan.';
+    }
+    btn.disabled = !ok;
+    hint.textContent = msg;
+  }
+
+  function renderBkConfirm() {
+    const p = bookingState.poli;
+    const rows = [
+      ['Poli', p ? p.nama : ''],
+      ['Jenis', bookingState.jenis === 'booking' ? 'Booking terjadwal' : 'Walk-in hari ini'],
+      ['Tanggal', bookingState.jenis === 'booking' ? fmtDateTime(bookingState.tanggal, bookingState.jamBooking) : fmtDate(todayStr()) + ' (Sesuai antrean)'],
+      ['Keluhan', bookingState.keluhan]
+    ];
+    document.getElementById('bk-confirm-summary').innerHTML = rows.map(r => `
+      <div class="flex justify-between gap-4 p-3 rounded-xl bg-mist border border-line">
+        <span class="text-fluid-2 font-semibold text-ink-muted">${r[0]}</span>
+        <span class="text-fluid-2 font-bold text-right">${escapeHtml(r[1]) || '—'}</span>
+      </div>`).join('');
+  }
+
+  document.getElementById('bk-keluhan')?.addEventListener('input', e => {
+    bookingState.keluhan = e.target.value;
+    document.getElementById('bk-keluhan-count').textContent = e.target.value.length;
+    updateBkNext();
+  });
+
+  async function submitBooking(e) {
+    e.preventDefault();
+    const btn = e.target;
+    btn.disabled = true;
+    try {
+      let res;
+      if (bookingState.jenis === 'booking') {
+        res = await gas('createBooking', {
+          poliId: bookingState.poliId,
+          tanggal: bookingState.tanggal,
+          jamBooking: bookingState.jamBooking,
+          keluhan: bookingState.keluhan
+        });
+      } else {
+        res = await gas('createWalkIn', {
+          poliId: bookingState.poliId,
+          keluhan: bookingState.keluhan
+        });
+      }
+      state.lastCreated = res.antrian;
+      document.getElementById('bk-success-no').textContent = res.antrian.noAntrian;
+      document.getElementById('bk-success-summary').innerHTML = `
+        <p>${escapeHtml(res.antrian.poliNama)}</p>
+        <p>${fmtDateTime(res.antrian.tanggal, res.antrian.jamBooking)}</p>
+        <p>Status: <span class="font-bold text-secondary-dark">${STATUS_META[res.antrian.status]?.label || res.antrian.status}</span></p>`;
+      goBkStep(5);
+    } catch (err) {
+      showToast(err.message, 'error');
+      btn.disabled = false;
+    }
+  }
+
+  function openStatusFromBooking() {
+    openStatusView(state.lastCreated ? state.lastCreated.id : null);
+  }
+
+  // =====================================================================
+  // Status Antrian (real-time)
+  // =====================================================================
+  async function openStatusView(id) {
+    state.statusId = id || null;
+    showView('status');
+    await loadStatus(false);
+  }
+
+  async function loadStatus(silent) {
+    try {
+      const res = await gas('getStatusAntrian', {});
+      state.statusList = res.antrian.filter(a => ['booking', 'checkin', 'dipanggil', 'diperiksa'].includes(a.status));
+      renderStatus();
+    } catch (err) {
+      if (!silent) showToast(err.message, 'error');
+    }
+  }
+
+  function renderStatus() {
+    if (!shouldRender('status', state.statusList)) return;
+    const wrap = document.getElementById('status-card');
+    const list = state.statusList;
+    if (!list || list.length === 0) {
+      wrap.innerHTML = `
+        <div class="bg-white rounded-2xl border border-line shadow-soft p-8 text-center space-y-3">
+          <span class="material-symbols-outlined text-5xl text-ink-faint">fact_check</span>
+          <p class="font-bold text-sm">Tidak ada antrian aktif</p>
+          <p class="text-fluid-2 text-ink-muted">Semua kunjungan Anda sudah selesai atau dibatalkan.</p>
+          <button type="button" onclick="openBookingFlow()" class="inline-flex items-center gap-1.5 px-4 py-2.5 rounded-xl bg-primary hover:bg-primary-dark text-white text-fluid-2 font-bold transition-all shadow-soft">
+            <span class="material-symbols-outlined text-base">add</span> Daftar Antrian Baru
+          </button>
+        </div>`;
+      return;
+    }
+    wrap.innerHTML = list.map(a => {
+      const pct = a.totalDiAntrean > 0 ? Math.max(8, Math.round((1 - (a.menungguDiDepan) / a.totalDiAntrean) * 100)) : 100;
+      const anim = a.status === 'dipanggil' ? ' animate-big-pulse' : '';
+      return `
+      <div class="bg-white rounded-2xl border ${a.status === 'dipanggil' ? 'border-green-300 animate-pulse-soft' : 'border-line'} shadow-soft p-6 text-center space-y-4">
+        <div>
+          <p class="text-fluid-2 font-semibold text-ink-muted uppercase tracking-wider">${escapeHtml(a.poliNama)}</p>
+          <p class="text-6xl font-extrabold text-primary tracking-tight${anim}">${escapeHtml(a.noAntrian)}</p>
+        </div>
+        <div class="flex items-center justify-center gap-2">${statusBadge(a.status)}</div>
+
+        ${a.status === 'dipanggil' ? `
+        <div class="flex items-center justify-center gap-2 p-3 rounded-xl bg-green-50 border border-green-200">
+          <span class="material-symbols-outlined text-secondary">campaign</span>
+          <p class="text-sm font-bold text-green-800">Silakan menuju ruang poli Anda!</p>
+        </div>` : ''}
+
+        <div class="space-y-1 text-fluid-2 text-ink-muted">
+          <p>${fmtDateTime(a.tanggal, a.jamBooking)}</p>
+          <p>${a.jenis === 'booking' ? 'Booking terjadwal' : 'Walk-in'}${a.keluhan ? ' &middot; ' + escapeHtml(a.keluhan) : ''}</p>
+        </div>
+
+        <div class="space-y-1.5 pt-2">
+          <div class="h-2.5 rounded-full bg-mist border border-line overflow-hidden">
+            <div class="h-full rounded-full bg-gradient-to-r from-primary to-secondary transition-all duration-700" style="width:${pct}%"></div>
+          </div>
+          <div class="flex justify-between text-fluid-1 text-ink-muted">
+            <span>Posisi: <b class="text-ink">${a.posisi || '-'}</b> dari ${a.totalDiAntrean || '-'}</span>
+            <span>${a.menungguDiDepan} antrian di depan</span>
+          </div>
+        </div>
+
+        ${a.sedangDipanggil ? `
+        <div class="p-3 rounded-xl bg-mist border border-line text-fluid-2 text-ink-muted flex items-center justify-center gap-2">
+          <span class="material-symbols-outlined text-base text-primary">campaign</span>
+          Sedang dipanggil: <b class="text-primary">${escapeHtml(a.sedangDipanggil.noAntrian)}</b>
+        </div>` : ''}
+
+        ${a.status === 'selesai' ? '<p class="text-fluid-2 text-emerald-600 font-semibold">Kunjungan selesai. Terima kasih!</p>' : ''}
+      </div>`;
+    }).join('');
+  }
+
+  // =====================================================================
+  // Dashboard Loket
+  // =====================================================================
+  async function loadLoket(silent) {
+    try {
+      const res = await gas('getLoketDashboard', {});
+      state.loket = res;
+      document.getElementById('loket-header-name').textContent = res.petugas.nama;
+      document.getElementById('loket-today').textContent = fmtDate(res.today);
+      renderLoket();
+    } catch (err) {
+      if (!silent) showToast(err.message, 'error');
+    }
+  }
+
+  function renderLoket() {
+    if (!shouldRender('loket', { loket: state.loket, loketPoli: state.loketPoli })) return;
+    if (!state.loket) return;
+    const { polis, antrian } = state.loket;
+
+    const total = antrian.filter(a => a.status !== 'batal').length;
+    const menunggu = antrian.filter(a => ['booking', 'checkin'].includes(a.status)).length;
+    const proses = antrian.filter(a => ['dipanggil', 'diperiksa'].includes(a.status)).length;
+    const selesai = antrian.filter(a => a.status === 'selesai').length;
+
+    document.getElementById('loket-stats').innerHTML = [
+      ['Hari Ini', total, 'event_note', 'text-primary bg-primary-light'],
+      ['Menunggu', menunggu, 'hourglass_top', 'text-blue-600 bg-blue-50'],
+      ['Dalam Proses', proses, 'medical_services', 'text-amber-600 bg-amber-50'],
+      ['Selesai', selesai, 'check_circle', 'text-emerald-600 bg-emerald-50']
+    ].map(s => `
+      <div class="bg-white rounded-2xl border border-line shadow-soft p-4 flex items-center gap-3">
+        <div class="w-10 h-10 rounded-xl ${s[3]} flex items-center justify-center shrink-0">
+          <span class="material-symbols-outlined text-lg">${s[2]}</span>
+        </div>
+        <div class="min-w-0">
+          <p class="text-fluid-1 font-semibold uppercase tracking-wider text-ink-muted">${s[0]}</p>
+          <p class="text-xl font-extrabold leading-tight">${s[1]}</p>
+        </div>
+      </div>`).join('');
+
+    // Poli tabs
+    const tabs = document.getElementById('loket-poli-tabs');
+    tabs.innerHTML = `<button type="button" onclick="setLoketPoli('all')"
+      class="shrink-0 px-3 py-1.5 rounded-lg text-fluid-1 font-bold border transition-all ${state.loketPoli === 'all' ? 'bg-primary text-white border-primary' : 'bg-white text-ink-muted border-line hover:border-primary'}">
+      Semua Poli</button>` +
+      polis.map(p => `<button type="button" onclick="setLoketPoli('${p.id}')"
+        class="shrink-0 px-3 py-1.5 rounded-lg text-fluid-1 font-bold border transition-all ${state.loketPoli === p.id ? 'bg-primary text-white border-primary' : 'bg-white text-ink-muted border-line hover:border-primary'}">
+        ${escapeHtml(p.kode)} <span class="opacity-70">(${p.menunggu})</span></button>`).join('');
+
+    // Panggil button label
+    const poliSel = polis.find(p => p.id === state.loketPoli);
+    document.getElementById('btn-panggil').querySelector('span:last-child').textContent =
+      state.loketPoli === 'all' ? 'Panggil (pilih poli)' : 'Panggil ' + (poliSel ? poliSel.kode : '');
+
+    renderLoketTable();
+  }
+
+  function setLoketPoli(id) { state.loketPoli = id; renderLoket(); }
+
+  function loketActions(a) {
+    if (a.status === 'booking') {
+      return `
+        <button type="button" onclick="checkInAntrian('${a.id}')"
+          class="inline-flex items-center gap-1 px-2.5 py-1.5 min-h-[34px] rounded-lg bg-blue-50 text-blue-700 border border-blue-200 text-fluid-1 font-bold hover:bg-blue-100 transition-all">
+          <span class="material-symbols-outlined text-sm">how_to_reg</span> Check-in</button>
+        <button type="button" onclick="batalAntrian('${a.id}')"
+          class="inline-flex items-center gap-1 px-2.5 py-1.5 min-h-[34px] rounded-lg bg-white text-red-600 border border-line text-fluid-1 font-bold hover:bg-red-50 transition-all">
+          <span class="material-symbols-outlined text-sm">close</span> Batal</button>`;
+    }
+    if (a.status === 'checkin') {
+      return `<button type="button" onclick="batalAntrian('${a.id}')"
+        class="inline-flex items-center gap-1 px-2.5 py-1.5 min-h-[34px] rounded-lg bg-white text-red-600 border border-line text-fluid-1 font-bold hover:bg-red-50 transition-all">
+        <span class="material-symbols-outlined text-sm">close</span> Batal</button>`;
+    }
+    return '<span class="text-ink-faint">—</span>';
+  }
+
+  function loketBadgeJenis(a) {
+    return a.jenis === 'walkin'
+      ? '<span class="text-fluid-1 font-bold bg-mist border border-line px-1.5 py-0.5 rounded-full text-ink-muted">Walk-in</span>'
+      : '<span class="text-fluid-1 font-bold bg-primary-light text-primary px-1.5 py-0.5 rounded-full">Booking</span>';
+  }
+
+  function renderLoketTable() {
+    const body = document.getElementById('loket-table-body');
+    const cards = document.getElementById('loket-table-cards');
+    const empty = document.getElementById('loket-empty');
+    const statusFilter = document.getElementById('loket-status-filter').value;
+    const rows = state.loket.antrian.filter(a => {
+      if (state.loketPoli !== 'all' && a.poliId !== state.loketPoli) return false;
+      if (statusFilter && a.status !== statusFilter) return false;
+      return true;
+    });
+
+    empty.classList.toggle('hidden', rows.length > 0);
+
+    body.innerHTML = rows.map(a => {
+      const actions = loketActions(a);
+      return `
+      <tr class="border-b border-line/60 align-top">
+        <td class="py-2.5 pr-3">
+          <span class="font-extrabold text-primary">${escapeHtml(a.noAntrian)}</span>
+          <span class="block text-fluid-1 text-ink-faint">${escapeHtml(a.poliKode)}</span>
+        </td>
+        <td class="py-2.5 pr-3">
+          <p class="font-bold">${escapeHtml(a.namaPasien)}</p>
+          <p class="text-fluid-1 text-ink-muted">${tipeLabel(a.tipePasien)} ${a.identitas ? '&middot; ' + escapeHtml(a.identitas) : ''}</p>
+        </td>
+        <td class="py-2.5 pr-3">${loketBadgeJenis(a)}</td>
+        <td class="py-2.5 pr-3 text-ink-muted">${a.jamBooking || '—'}</td>
+        <td class="py-2.5 pr-3 text-ink-muted max-w-[140px] truncate" title="${escapeHtml(a.keluhan)}">${escapeHtml(a.keluhan) || '—'}</td>
+        <td class="py-2.5 pr-3">${statusBadge(a.status)}</td>
+        <td class="py-2.5 text-right whitespace-nowrap">${actions}</td>
+      </tr>`;
+    }).join('');
+
+    cards.innerHTML = rows.length
+      ? rows.map(a => `
+        <div class="bg-white rounded-2xl border border-line shadow-soft p-3.5 space-y-3">
+          <div class="flex items-start justify-between gap-3">
+            <div class="flex items-center gap-3 min-w-0">
+              <div class="w-11 h-11 rounded-xl bg-primary-light text-primary flex flex-col items-center justify-center shrink-0">
+                <span class="text-[8px] font-bold">${escapeHtml(a.poliKode)}</span>
+                <span class="text-fluid-2 font-extrabold leading-tight">${escapeHtml(a.noAntrian)}</span>
+              </div>
+              <div class="min-w-0">
+                <p class="text-fluid-2 font-bold truncate">${escapeHtml(a.namaPasien)}</p>
+                <p class="text-fluid-1 text-ink-muted">${tipeLabel(a.tipePasien)} ${a.identitas ? '&middot; ' + escapeHtml(a.identitas) : ''}</p>
+              </div>
+            </div>
+            ${statusBadge(a.status)}
+          </div>
+          <div class="flex flex-wrap items-center justify-between gap-2 text-fluid-1 text-ink-muted">
+            <span class="flex items-center gap-1">${loketBadgeJenis(a)}</span>
+            <span>${a.jamBooking ? 'Jam ' + a.jamBooking : 'Jam —'}</span>
+          </div>
+          ${a.keluhan ? `<p class="text-fluid-1 text-ink-muted line-clamp-2">${escapeHtml(a.keluhan)}</p>` : ''}
+          <div class="flex flex-wrap gap-2 pt-1 border-t border-line">${loketActions(a)}</div>
+        </div>`).join('')
+      : '';
+
+    document.getElementById('loket-updated').textContent = 'Diperbarui ' + new Date().toLocaleTimeString('id-ID');
+  }
+
+  async function checkInAntrian(id) {
+    try {
+      await gas('checkInAntrian', { idAntrian: id });
+      showToast('Pasien berhasil check-in.');
+      loadLoket(true);
+    } catch (err) { showToast(err.message, 'error'); }
+  }
+
+  async function batalAntrian(id) {
+    if (!confirm('Batalkan antrian ini?')) return;
+    try {
+      await gas('batalAntrianLoket', { idAntrian: id });
+      showToast('Antrian dibatalkan.');
+      loadLoket(true);
+    } catch (err) { showToast(err.message, 'error'); }
+  }
+
+  async function panggilBerikutnya() {
+    if (state.loketPoli === 'all') return showToast('Pilih poli terlebih dahulu.', 'error');
+    const btn = document.getElementById('btn-panggil');
+    btn.disabled = true;
+    try {
+      const res = await gas('panggilBerikutnya', { poliId: state.loketPoli });
+      showToast('Memanggil ' + res.antrian.noAntrian + ' — ' + res.antrian.poliNama + '.');
+      loadLoket(true);
+    } catch (err) {
+      showToast(err.message, 'error');
+    } finally {
+      btn.disabled = false;
+    }
+  }
+
+  // --- Walk-in manual ---
+  function openWalkinModal() {
+    state.wkl = { pasienId: null, tipe: 'umum' };
+    document.getElementById('wkl-search').value = '';
+    document.getElementById('wkl-result').innerHTML = '';
+    document.getElementById('wkl-nama').value = '';
+    document.getElementById('wkl-identitas').value = '';
+    document.getElementById('wkl-hp').value = '';
+    document.getElementById('wkl-unit').value = '';
+    document.getElementById('wkl-keluhan').value = '';
+    document.getElementById('wkl-nama').disabled = false;
+    document.getElementById('wkl-identitas').disabled = false;
+    setWklTipe('umum');
+    const sel = document.getElementById('wkl-poli');
+    sel.innerHTML = (state.loket?.polis || []).filter(p => p.sisaHariIni > 0)
+      .map(p => `<option value="${p.id}">${escapeHtml(p.kode)} — ${escapeHtml(p.nama)} (${p.sisaHariIni} sisa)</option>`).join('') ||
+      `<option value="">Semua poli penuh hari ini</option>`;
+    openModal('modal-walkin');
+  }
+
+  function setWklTipe(tipe) {
+    state.wkl.tipe = tipe;
+    document.querySelectorAll('#modal-walkin [data-tipe]').forEach(b => {
+      b.className = 'py-1.5 text-fluid-1 font-bold rounded-lg transition-all ' +
+        (b.dataset.tipe === tipe ? 'bg-white text-primary shadow-sm border border-line' : 'text-ink-muted');
+    });
+    document.getElementById('wkl-unit-wrap').classList.toggle('hidden', tipe !== 'pegawai');
+  }
+
+  async function searchWalkinPasien() {
+    const q = document.getElementById('wkl-search').value.trim();
+    if (!q) return;
+    try {
+      const res = await gas('searchPasien', { q });
+      state.wkl.cache = res.results;
+      const wrap = document.getElementById('wkl-result');
+      if (!res.results.length) {
+        wrap.innerHTML = `<p class="text-fluid-2 text-ink-faint">Tidak ditemukan. Isi form pasien baru di bawah.</p>`;
+        return;
+      }
+      wrap.innerHTML = res.results.map(p => `
+        <button type="button" onclick="pickWalkinPasien('${p.id}')"
+          class="w-full text-left p-2.5 rounded-xl border border-line bg-white hover:border-primary transition-all">
+          <p class="text-fluid-2 font-bold">${escapeHtml(p.nama)}</p>
+          <p class="text-fluid-1 text-ink-muted">${tipeLabel(p.tipePasien)} &middot; ${escapeHtml(p.identitas)}</p>
+        </button>`).join('');
+    } catch (err) { showToast(err.message, 'error'); }
+  }
+
+  function pickWalkinPasien(id) {
+    state.wkl.pasienId = id;
+    const p = state.wkl.cache?.find(x => x.id === id);
+    if (p) {
+      document.getElementById('wkl-nama').value = p.nama;
+      document.getElementById('wkl-identitas').value = p.identitas;
+      document.getElementById('wkl-hp').value = p.noHp;
+    }
+    document.getElementById('wkl-nama').disabled = true;
+    document.getElementById('wkl-identitas').disabled = true;
+    document.getElementById('wkl-result').innerHTML = `<p class="text-fluid-2 text-secondary-dark font-semibold flex items-center gap-1"><span class="material-symbols-outlined text-sm">check_circle</span> Pasien terpilih. Edit form di bawah jika perlu.</p>`;
+  }
+
+  async function submitWalkinLoket() {
+    const payload = {
+      poliId: document.getElementById('wkl-poli').value,
+      keluhan: document.getElementById('wkl-keluhan').value.trim(),
+      userId: state.wkl.pasienId,
+      nama: document.getElementById('wkl-nama').value.trim(),
+      tipePasien: state.wkl.tipe,
+      identitas: document.getElementById('wkl-identitas').value.trim(),
+      noHp: document.getElementById('wkl-hp').value.trim(),
+      unitKerja: document.getElementById('wkl-unit').value.trim()
+    };
+    if (!payload.poliId) return showToast('Pilih poli tujuan.', 'error');
+    const btn = document.getElementById('btn-wkl-save');
+    btn.disabled = true;
+    try {
+      const res = await gas('createWalkInLoket', payload);
+      closeModal('modal-walkin');
+      showToast('Walk-in tersimpan: ' + res.antrian.noAntrian);
+      loadLoket(true);
+    } catch (err) {
+      showToast(err.message, 'error');
+    } finally {
+      btn.disabled = false;
+    }
+  }
+
+  // =====================================================================
+  // Dashboard Dokter
+  // =====================================================================
+  async function loadDokter(silent) {
+    try {
+      const res = await gas('getDokterDashboard', {});
+      state.dokter = res;
+      document.getElementById('dokter-header-name').textContent = res.dokter.nama;
+      document.getElementById('dokter-poli-name').textContent = res.poli ? res.poli.nama + ' &middot; ' + fmtDate(res.today) : 'Poli';
+      renderDokter();
+    } catch (err) {
+      if (!silent) showToast(err.message, 'error');
+    }
+  }
+
+  function renderDokter() {
+    if (!shouldRender('dokter', state.dokter)) return;
+    const d = state.dokter;
+    if (!d) return;
+    document.getElementById('dokter-count-dipanggil').textContent = d.dipanggil.length;
+    document.getElementById('dokter-count-diperiksa').textContent = d.diperiksa.length;
+    document.getElementById('dokter-count-selesai').textContent = d.selesai.length;
+
+    const card = (a, actions) => `
+      <div class="flex flex-wrap items-center justify-between gap-3 p-3.5 rounded-xl border border-line bg-white">
+        <div class="flex items-center gap-3 min-w-0">
+          <div class="w-12 h-12 rounded-xl bg-primary-light text-primary flex flex-col items-center justify-center shrink-0">
+            <span class="text-[9px] font-bold">${escapeHtml(a.poliKode)}</span>
+            <span class="text-sm font-extrabold">${escapeHtml(a.noAntrian)}</span>
+          </div>
+          <div class="min-w-0">
+            <p class="text-sm font-bold truncate">${escapeHtml(a.namaPasien)}</p>
+            <p class="text-fluid-1 text-ink-muted">${tipeLabel(a.tipePasien)} &middot; ${a.jamBooking || 'walk-in'} &middot; ${escapeHtml(a.keluhan) || '—'}</p>
+          </div>
+        </div>
+        <div class="flex items-center gap-2">${actions}</div>
+      </div>`;
+
+    document.getElementById('dokter-dipanggil').innerHTML = d.dipanggil.length
+      ? d.dipanggil.map(a => card(a, `
+        <button type="button" onclick="mulaiPeriksa('${a.id}')"
+          class="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-primary hover:bg-primary-dark text-white text-fluid-2 font-bold transition-all shadow-soft">
+          <span class="material-symbols-outlined text-base">medical_services</span> Mulai Periksa</button>`)).join('')
+      : `<p class="text-fluid-2 text-ink-faint text-center py-4">Tidak ada pasien yang sedang dipanggil.</p>`;
+
+    document.getElementById('dokter-diperiksa').innerHTML = d.diperiksa.length
+      ? d.diperiksa.map(a => card(a, `
+        <button type="button" onclick="selesaiPeriksa('${a.id}')"
+          class="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-secondary hover:bg-secondary-dark text-white text-fluid-2 font-bold transition-all shadow-soft">
+          <span class="material-symbols-outlined text-base">check</span> Selesai</button>`)).join('')
+      : `<p class="text-fluid-2 text-ink-faint text-center py-4">Tidak ada pasien dalam pemeriksaan.</p>`;
+
+    document.getElementById('dokter-selesai').innerHTML = d.selesai.length
+      ? d.selesai.slice(0, 10).map(a => card(a, '')).join('')
+      : `<p class="text-fluid-2 text-ink-faint text-center py-4">Belum ada pasien selesai hari ini.</p>`;
+  }
+
+  async function mulaiPeriksa(id) {
+    try {
+      await gas('mulaiPeriksa', { idAntrian: id });
+      showToast('Pemeriksaan dimulai.');
+      loadDokter(true);
+    } catch (err) { showToast(err.message, 'error'); }
+  }
+
+  async function selesaiPeriksa(id) {
+    try {
+      await gas('selesaiPeriksa', { idAntrian: id });
+      showToast('Kunjungan selesai.');
+      loadDokter(true);
+    } catch (err) { showToast(err.message, 'error'); }
+  }
+
+  // =====================================================================
+  // Dashboard Admin
+  // =====================================================================
+  function setAdminTab(tab) {
+    state.adminTab = tab;
+    document.querySelectorAll('#adm-tabs button').forEach(b => {
+      const active = b.dataset.tab === tab;
+      b.className = 'inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-fluid-2 font-bold border transition-all ' +
+        (active ? 'bg-ink text-white border-ink' : 'bg-white text-ink-muted border-line hover:border-ink');
+    });
+    ['poli', 'jadwal', 'akun', 'laporan'].forEach(t => {
+      document.getElementById('adm-panel-' + t).classList.toggle('hidden', t !== tab);
+    });
+    if (tab === 'laporan') loadReports();
+  }
+
+  async function loadAdmin() {
+    try {
+      const res = await gas('getAdminData', {});
+      state.admin = res;
+      renderAdminPoli();
+      renderAdminJadwal();
+      renderAdminStaff();
+    } catch (err) { showToast(err.message, 'error'); }
+  }
+
+  function renderAdminPoli() {
+    const body = document.getElementById('adm-poli-table');
+    body.innerHTML = state.admin.polis.map(p => `
+      <tr class="border-b border-line/60">
+        <td class="py-2.5 pr-3"><span class="font-extrabold text-primary">${escapeHtml(p.kode)}</span></td>
+        <td class="py-2.5 pr-3 font-bold">${escapeHtml(p.nama)}</td>
+        <td class="py-2.5 pr-3"><span class="text-fluid-1 font-bold ${p.jenis === 'umum' ? 'bg-secondary-light text-secondary-dark' : 'bg-amber-50 text-amber-700'} px-2 py-0.5 rounded-full">${p.jenis === 'umum' ? 'Umum' : 'Spesialis'}</span></td>
+        <td class="py-2.5 pr-3">
+          <input type="number" id="pol-kuota-${p.id}" value="${p.kuotaHarian}" min="1"
+            class="w-20 text-sm font-bold bg-mist border border-line rounded-lg px-2 py-1.5 text-center focus:outline-none focus:border-primary">
+        </td>
+        <td class="py-2.5 text-right">
+          <div class="inline-flex gap-1.5">
+            <button type="button" onclick="editPoli('${p.id}')" class="inline-flex items-center gap-1 px-2.5 py-1.5 min-h-[34px] rounded-lg bg-white border border-line text-ink-muted text-fluid-1 font-bold hover:text-primary transition-all">
+              <span class="material-symbols-outlined text-sm">edit</span> Edit</button>
+            <button type="button" onclick="savePoliKuota('${p.id}')" class="inline-flex items-center gap-1 px-2.5 py-1.5 min-h-[34px] rounded-lg bg-primary text-white text-fluid-1 font-bold transition-all shadow-soft">
+              <span class="material-symbols-outlined text-sm">save</span> Simpan</button>
+          </div>
+        </td>
+      </tr>`).join('');
+
+    document.getElementById('adm-poli-cards').innerHTML = state.admin.polis.map(p => `
+      <div class="bg-white rounded-2xl border border-line shadow-soft p-3.5 space-y-3">
+        <div class="flex items-start justify-between gap-3">
+          <div class="flex items-center gap-3 min-w-0">
+            <div class="w-11 h-11 rounded-xl ${p.jenis === 'umum' ? 'bg-secondary-light text-secondary-dark' : 'bg-amber-50 text-amber-700'} flex items-center justify-center shrink-0">
+              <span class="material-symbols-outlined text-lg">${p.jenis === 'umum' ? 'stethoscope' : 'medical_services'}</span>
+            </div>
+            <div class="min-w-0">
+              <p class="text-fluid-2 font-extrabold truncate">${escapeHtml(p.nama)}</p>
+              <p class="text-fluid-1 text-ink-muted">${escapeHtml(p.kode)} &middot; ${p.jenis === 'umum' ? 'Umum' : 'Spesialis'}</p>
+            </div>
+          </div>
+          <span class="text-fluid-1 font-bold ${p.jenis === 'umum' ? 'bg-secondary-light text-secondary-dark' : 'bg-amber-50 text-amber-700'} px-2 py-0.5 rounded-full shrink-0">${p.jenis === 'umum' ? 'Umum' : 'Spesialis'}</span>
+        </div>
+        <div class="flex items-center justify-between gap-3 pt-1 border-t border-line">
+          <label class="text-fluid-1 text-ink-muted flex items-center gap-2">Kuota harian
+            <input type="number" id="pol-kuota-${p.id}" value="${p.kuotaHarian}" min="1"
+              class="w-16 text-sm font-bold bg-mist border border-line rounded-lg px-2 py-1 text-center focus:outline-none focus:border-primary">
+          </label>
+          <div class="flex gap-1.5">
+            <button type="button" onclick="editPoli('${p.id}')" class="inline-flex items-center gap-1 px-2.5 py-1.5 min-h-[34px] rounded-lg bg-white border border-line text-ink-muted text-fluid-1 font-bold hover:text-primary transition-all">
+              <span class="material-symbols-outlined text-sm">edit</span> Edit</button>
+            <button type="button" onclick="savePoliKuota('${p.id}')" class="inline-flex items-center gap-1 px-2.5 py-1.5 min-h-[34px] rounded-lg bg-primary text-white text-fluid-1 font-bold transition-all shadow-soft">
+              <span class="material-symbols-outlined text-sm">save</span> Simpan</button>
+          </div>
+        </div>
+      </div>`).join('');
+  }
+
+  async function savePoliKuota(id) {
+    const p = state.admin.polis.find(x => x.id === id);
+    const kuota = Number(document.getElementById('pol-kuota-' + id).value);
+    try {
+      await gas('savePoli', { id, kode: p.kode, nama: p.nama, jenis: p.jenis, kuota });
+      showToast('Kuota poli diperbarui.');
+      loadAdmin();
+    } catch (err) { showToast(err.message, 'error'); }
+  }
+
+  function openPoliModal() {
+    document.getElementById('pol-modal-title').textContent = 'Tambah Poli';
+    document.getElementById('pol-id').value = '';
+    document.getElementById('pol-kode').value = '';
+    document.getElementById('pol-nama').value = '';
+    document.getElementById('pol-jenis').value = 'umum';
+    document.getElementById('pol-kuota').value = '30';
+    openModal('modal-poli');
+  }
+
+  function editPoli(id) {
+    const p = state.admin.polis.find(x => x.id === id);
+    if (!p) return;
+    document.getElementById('pol-modal-title').textContent = 'Edit Poli — ' + p.kode;
+    document.getElementById('pol-id').value = p.id;
+    document.getElementById('pol-kode').value = p.kode;
+    document.getElementById('pol-nama').value = p.nama;
+    document.getElementById('pol-jenis').value = p.jenis;
+    document.getElementById('pol-kuota').value = p.kuotaHarian;
+    openModal('modal-poli');
+  }
+
+  async function submitPoli() {
+    const payload = {
+      id: document.getElementById('pol-id').value,
+      kode: document.getElementById('pol-kode').value,
+      nama: document.getElementById('pol-nama').value,
+      jenis: document.getElementById('pol-jenis').value,
+      kuota: Number(document.getElementById('pol-kuota').value)
+    };
+    try {
+      await gas('savePoli', payload);
+      closeModal('modal-poli');
+      showToast('Data poli disimpan.');
+      loadAdmin();
+    } catch (err) { showToast(err.message, 'error'); }
+  }
+
+  function renderAdminJadwal() {
+    const body = document.getElementById('adm-jadwal-table');
+    body.innerHTML = state.admin.jadwals.map(j => `
+      <tr class="border-b border-line/60">
+        <td class="py-2.5 pr-3"><span class="font-bold">${escapeHtml(j.poliNama)}</span> <span class="text-fluid-1 text-ink-faint">${escapeHtml(j.poliKode)}</span></td>
+        <td class="py-2.5 pr-3 font-bold">${escapeHtml(j.dokter)}</td>
+        <td class="py-2.5 pr-3">${escapeHtml(j.hari)}</td>
+        <td class="py-2.5 pr-3 text-ink-muted">${j.mulai} – ${j.selesai}</td>
+        <td class="py-2.5 pr-3"><span class="text-fluid-1 font-bold ${j.aktif === 'aktif' ? 'bg-secondary-light text-secondary-dark' : 'bg-slate-100 text-slate-500'} px-2 py-0.5 rounded-full">${j.aktif === 'aktif' ? 'Aktif' : 'Nonaktif'}</span></td>
+        <td class="py-2.5 text-right">
+          <div class="inline-flex gap-1.5">
+            <button type="button" onclick="editJadwal('${j.id}')" class="inline-flex items-center gap-1 px-2.5 py-1.5 min-h-[34px] rounded-lg bg-white border border-line text-ink-muted text-fluid-1 font-bold hover:text-primary transition-all">
+              <span class="material-symbols-outlined text-sm">edit</span></button>
+            <button type="button" onclick="deleteJadwal('${j.id}')" class="inline-flex items-center gap-1 px-2.5 py-1.5 min-h-[34px] rounded-lg bg-white border border-line text-red-500 text-fluid-1 font-bold hover:bg-red-50 transition-all">
+              <span class="material-symbols-outlined text-sm">delete</span></button>
+          </div>
+        </td>
+      </tr>`).join('');
+
+    document.getElementById('adm-jadwal-cards').innerHTML = state.admin.jadwals.map(j => `
+      <div class="bg-white rounded-2xl border border-line shadow-soft p-3.5 space-y-3">
+        <div class="flex items-start justify-between gap-3">
+          <div class="min-w-0">
+            <p class="text-fluid-2 font-extrabold truncate">${escapeHtml(j.poliNama)} <span class="text-fluid-1 text-ink-faint font-medium">${escapeHtml(j.poliKode)}</span></p>
+            <p class="text-fluid-1 text-ink-muted mt-0.5">${escapeHtml(j.dokter)}</p>
+          </div>
+          <span class="text-fluid-1 font-bold ${j.aktif === 'aktif' ? 'bg-secondary-light text-secondary-dark' : 'bg-slate-100 text-slate-500'} px-2 py-0.5 rounded-full shrink-0">${j.aktif === 'aktif' ? 'Aktif' : 'Nonaktif'}</span>
+        </div>
+        <div class="flex items-center justify-between gap-3 pt-1 border-t border-line">
+          <span class="text-fluid-1 text-ink-muted flex items-center gap-1.5">
+            <span class="material-symbols-outlined text-sm">schedule</span> ${escapeHtml(j.hari)} &middot; ${j.mulai} – ${j.selesai}
+          </span>
+          <div class="flex gap-1.5">
+            <button type="button" onclick="editJadwal('${j.id}')" class="inline-flex items-center justify-center w-9 h-9 rounded-lg bg-white border border-line text-ink-muted text-fluid-1 font-bold hover:text-primary transition-all">
+              <span class="material-symbols-outlined text-sm">edit</span></button>
+            <button type="button" onclick="deleteJadwal('${j.id}')" class="inline-flex items-center justify-center w-9 h-9 rounded-lg bg-white border border-line text-red-500 text-fluid-1 font-bold hover:bg-red-50 transition-all">
+              <span class="material-symbols-outlined text-sm">delete</span></button>
+          </div>
+        </div>
+      </div>`).join('');
+  }
+
+  function openJadwalModal() {
+    document.getElementById('jwl-modal-title').textContent = 'Tambah Jadwal';
+    document.getElementById('jwl-id').value = '';
+    document.getElementById('jwl-dokter').value = '';
+    document.getElementById('jwl-hari').value = 'Senin';
+    document.getElementById('jwl-mulai').value = '08:00';
+    document.getElementById('jwl-selesai').value = '12:00';
+    document.getElementById('jwl-aktif').value = 'aktif';
+    fillPoliSelect('jwl-poli', state.admin.polis, '');
+    openModal('modal-jadwal');
+  }
+
+  function editJadwal(id) {
+    const j = state.admin.jadwals.find(x => x.id === id);
+    if (!j) return;
+    document.getElementById('jwl-modal-title').textContent = 'Edit Jadwal — ' + j.dokter;
+    document.getElementById('jwl-id').value = j.id;
+    document.getElementById('jwl-dokter').value = j.dokter;
+    document.getElementById('jwl-hari').value = j.hari;
+    document.getElementById('jwl-mulai').value = j.mulai;
+    document.getElementById('jwl-selesai').value = j.selesai;
+    document.getElementById('jwl-aktif').value = j.aktif;
+    fillPoliSelect('jwl-poli', state.admin.polis, j.poliId);
+    openModal('modal-jadwal');
+  }
+
+  async function submitJadwal() {
+    const payload = {
+      id: document.getElementById('jwl-id').value,
+      poliId: document.getElementById('jwl-poli').value,
+      dokter: document.getElementById('jwl-dokter').value,
+      hari: document.getElementById('jwl-hari').value,
+      mulai: document.getElementById('jwl-mulai').value,
+      selesai: document.getElementById('jwl-selesai').value,
+      aktif: document.getElementById('jwl-aktif').value
+    };
+    try {
+      await gas('saveJadwal', payload);
+      closeModal('modal-jadwal');
+      showToast('Jadwal disimpan.');
+      loadAdmin();
+    } catch (err) { showToast(err.message, 'error'); }
+  }
+
+  async function deleteJadwal(id) {
+    if (!confirm('Hapus jadwal ini?')) return;
+    try {
+      await gas('deleteJadwal', { idJadwal: id });
+      showToast('Jadwal dihapus.');
+      loadAdmin();
+    } catch (err) { showToast(err.message, 'error'); }
+  }
+
+  function renderAdminStaff() {
+    const body = document.getElementById('adm-staff-table');
+    body.innerHTML = state.admin.staff.map(u => `
+      <tr class="border-b border-line/60">
+        <td class="py-2.5 pr-3 font-bold">${escapeHtml(u.nama)}</td>
+        <td class="py-2.5 pr-3 text-ink-muted">${escapeHtml(u.username)}</td>
+        <td class="py-2.5 pr-3"><span class="text-fluid-1 font-bold ${u.role === 'dokter' ? 'bg-primary-light text-primary' : 'bg-secondary-light text-secondary-dark'} px-2 py-0.5 rounded-full">${u.role === 'dokter' ? 'Dokter' : 'Petugas Loket'}</span></td>
+        <td class="py-2.5 pr-3 text-ink-muted">${u.role === 'dokter' ? (state.admin.polis.find(p => p.id === u.unitKerja)?.nama || '—') : u.unitKerja}</td>
+        <td class="py-2.5 text-right">
+          <button type="button" onclick="deleteStaff('${u.id}')" class="inline-flex items-center gap-1 px-2.5 py-1.5 min-h-[34px] rounded-lg bg-white border border-line text-red-500 text-fluid-1 font-bold hover:bg-red-50 transition-all">
+            <span class="material-symbols-outlined text-sm">delete</span></button>
+        </td>
+      </tr>`).join('');
+
+    document.getElementById('adm-staff-cards').innerHTML = state.admin.staff.map(u => `
+      <div class="bg-white rounded-2xl border border-line shadow-soft p-3.5 space-y-3">
+        <div class="flex items-start justify-between gap-3">
+          <div class="flex items-center gap-3 min-w-0">
+            <div class="w-11 h-11 rounded-xl ${u.role === 'dokter' ? 'bg-primary-light text-primary' : 'bg-secondary-light text-secondary-dark'} flex items-center justify-center shrink-0">
+              <span class="material-symbols-outlined text-lg">${u.role === 'dokter' ? 'stethoscope' : 'storefront'}</span>
+            </div>
+            <div class="min-w-0">
+              <p class="text-fluid-2 font-extrabold truncate">${escapeHtml(u.nama)}</p>
+              <p class="text-fluid-1 text-ink-muted truncate">@${escapeHtml(u.username)}</p>
+            </div>
+          </div>
+          <span class="text-fluid-1 font-bold ${u.role === 'dokter' ? 'bg-primary-light text-primary' : 'bg-secondary-light text-secondary-dark'} px-2 py-0.5 rounded-full shrink-0">${u.role === 'dokter' ? 'Dokter' : 'Petugas Loket'}</span>
+        </div>
+        <div class="flex items-center justify-between gap-3 pt-1 border-t border-line">
+          <span class="text-fluid-1 text-ink-muted truncate">${u.role === 'dokter' ? (state.admin.polis.find(p => p.id === u.unitKerja)?.nama || '—') : u.unitKerja}</span>
+          <button type="button" onclick="deleteStaff('${u.id}')" class="inline-flex items-center justify-center w-9 h-9 rounded-lg bg-white border border-line text-red-500 text-fluid-1 font-bold hover:bg-red-50 transition-all shrink-0">
+            <span class="material-symbols-outlined text-sm">delete</span></button>
+        </div>
+      </div>`).join('');
+  }
+
+  function openStaffModal() {
+    document.getElementById('stf-nama').value = '';
+    document.getElementById('stf-username').value = '';
+    document.getElementById('stf-password').value = '';
+    document.getElementById('stf-role').value = 'petugas_loket';
+    document.getElementById('stf-hp').value = '';
+    onStfRoleChange();
+    fillPoliSelect('stf-poli', state.admin.polis, '');
+    openModal('modal-staff');
+  }
+
+  function onStfRoleChange() {
+    const role = document.getElementById('stf-role').value;
+    document.getElementById('stf-poli-wrap').classList.toggle('hidden', role !== 'dokter');
+  }
+
+  async function submitStaff() {
+    const payload = {
+      nama: document.getElementById('stf-nama').value.trim(),
+      username: document.getElementById('stf-username').value.trim(),
+      password: document.getElementById('stf-password').value.trim(),
+      role: document.getElementById('stf-role').value,
+      poliId: document.getElementById('stf-poli').value,
+      noHp: document.getElementById('stf-hp').value.trim()
+    };
+    try {
+      await gas('addStaffUser', payload);
+      closeModal('modal-staff');
+      showToast('Akun berhasil dibuat.');
+      loadAdmin();
+    } catch (err) { showToast(err.message, 'error'); }
+  }
+
+  async function deleteStaff(id) {
+    if (!confirm('Hapus akun ini?')) return;
+    try {
+      await gas('deleteStaffUser', { idUser: id });
+      showToast('Akun dihapus.');
+      loadAdmin();
+    } catch (err) { showToast(err.message, 'error'); }
+  }
+
+  function fillPoliSelect(selId, polis, selected) {
+    const sel = document.getElementById(selId);
+    sel.innerHTML = polis.map(p =>
+      `<option value="${p.id}" ${p.id === selected ? 'selected' : ''}>${escapeHtml(p.kode)} — ${escapeHtml(p.nama)}</option>`).join('');
+  }
+
+  // --- Laporan & statistik ---
+  async function loadReports() {
+    try {
+      const res = await gas('getReports', {});
+      state.reports = res;
+      renderReportCards(res);
+      renderReportCharts('today');
+    } catch (err) { showToast(err.message, 'error'); }
+  }
+
+  function renderReportCards(r) {
+    document.getElementById('adm-report-cards').innerHTML = [
+      ['Kunjungan Hari Ini', r.totalToday, 'event_note', 'text-primary bg-primary-light'],
+      ['Selesai Hari Ini', r.selesaiToday, 'check_circle', 'text-emerald-600 bg-emerald-50'],
+      ['Kunjungan 7 Hari', r.totalWeek, 'show_chart', 'text-blue-600 bg-blue-50'],
+      ['Rata-rata Tunggu', r.avgWaitMin + ' mnt', 'timer', 'text-amber-600 bg-amber-50']
+    ].map(s => `
+      <div class="bg-white rounded-2xl border border-line shadow-soft p-4">
+        <div class="w-9 h-9 rounded-xl ${s[3]} flex items-center justify-center mb-2">
+          <span class="material-symbols-outlined text-lg">${s[2]}</span>
+        </div>
+        <p class="text-xl font-extrabold leading-tight">${s[1]}</p>
+        <p class="text-fluid-1 font-semibold uppercase tracking-wider text-ink-muted">${s[0]}</p>
+      </div>`).join('');
+  }
+
+  function renderReportCharts(mode) {
+    const r = state.reports;
+    if (!r) return;
+
+    const toggleToday = document.getElementById('report-toggle-today');
+    const toggleWeek = document.getElementById('report-toggle-week');
+    toggleToday.className = 'px-3 py-1.5 rounded-lg text-fluid-1 font-bold transition-all ' + (mode === 'today' ? 'bg-primary text-white' : 'bg-white border border-line text-ink-muted');
+    toggleWeek.className = 'px-3 py-1.5 rounded-lg text-fluid-1 font-bold transition-all ' + (mode === 'week' ? 'bg-primary text-white' : 'bg-white border border-line text-ink-muted');
+
+    // Trend line (14 hari)
+    if (chartTrend) chartTrend.destroy();
+    chartTrend = new Chart(document.getElementById('chart-trend'), {
+      type: 'line',
+      data: {
+        labels: r.trend.map(t => shortDate(t.tanggal)),
+        datasets: [
+          { label: 'Total', data: r.trend.map(t => t.total), borderColor: '#00A9A5', backgroundColor: 'rgba(0,169,165,0.10)', fill: true, tension: 0.35, pointRadius: 3 },
+          { label: 'Selesai', data: r.trend.map(t => t.selesai), borderColor: '#6FBE44', backgroundColor: 'transparent', tension: 0.35, pointRadius: 2 }
+        ]
+      },
+      options: chartBaseOptions()
+    });
+
+    // Bar per poli
+    if (chartPoli) chartPoli.destroy();
+    const perPoli = mode === 'today' ? r.perPoliToday : r.perPoliWeek;
+    chartPoli = new Chart(document.getElementById('chart-poli'), {
+      type: 'bar',
+      data: {
+        labels: perPoli.map(p => p.kode),
+        datasets: [{
+          label: mode === 'today' ? 'Hari ini' : '7 hari',
+          data: perPoli.map(p => p.jumlah),
+          backgroundColor: perPoli.map((_, i) => POLI_COLORS[i % POLI_COLORS.length]),
+          borderRadius: 6
+        }]
+      },
+      options: chartBaseOptions(true)
+    });
+
+    // Doughnut tipe pasien (7 hari)
+    if (chartTipe) chartTipe.destroy();
+    const tipeData = [
+      { label: 'Pegawai', value: r.perTipe.pegawai, color: '#00A9A5' },
+      { label: 'Keluarga', value: r.perTipe.keluarga, color: '#6FBE44' },
+      { label: 'Umum', value: r.perTipe.umum, color: '#2D7DD2' }
+    ];
+    chartTipe = new Chart(document.getElementById('chart-tipe'), {
+      type: 'doughnut',
+      data: {
+        labels: tipeData.map(t => t.label),
+        datasets: [{
+          data: tipeData.map(t => t.value),
+          backgroundColor: tipeData.map(t => t.color),
+          borderWidth: 2,
+          borderColor: '#FFFFFF'
+        }]
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        cutout: '65%',
+        plugins: { legend: { display: false } }
+      }
+    });
+    document.getElementById('report-tipe-legend').innerHTML = tipeData.map(t => `
+      <div class="flex items-center justify-between p-2.5 rounded-xl border border-line bg-white">
+        <span class="flex items-center gap-2"><span class="w-3 h-3 rounded-full" style="background:${t.color}"></span> ${t.label}</span>
+        <b>${t.value}</b>
+      </div>`).join('');
+  }
+
+  function chartBaseOptions(bars) {
+    return {
+      responsive: true,
+      maintainAspectRatio: false,
+      plugins: {
+        legend: { position: 'bottom', labels: { boxWidth: 12, padding: 12, font: { family: 'Plus Jakarta Sans', size: 10 }, color: '#5C6F6E' } },
+        tooltip: { bodyFont: { family: 'Plus Jakarta Sans' } }
+      },
+      scales: bars ? {
+        y: { beginAtZero: true, ticks: { precision: 0, font: { family: 'Plus Jakarta Sans', size: 10 }, color: '#8AA2A1' }, grid: { color: '#F0F5F5' } },
+        x: { ticks: { font: { family: 'Plus Jakarta Sans', size: 10 }, color: '#5C6F6E' }, grid: { display: false } }
+      } : {
+        y: { beginAtZero: true, ticks: { precision: 0, font: { family: 'Plus Jakarta Sans', size: 10 }, color: '#8AA2A1' }, grid: { color: '#F0F5F5' } },
+        x: { ticks: { font: { family: 'Plus Jakarta Sans', size: 9 }, color: '#5C6F6E' }, grid: { display: false } }
+      }
+    };
+  }
+
+  // =====================================================================
+  // UI helpers
+  // =====================================================================
+  function openModal(id) {
+    const el = document.getElementById(id);
+    el.classList.remove('hidden');
+    el.classList.add('flex');
+  }
+  function closeModal(id) {
+    const el = document.getElementById(id);
+    el.classList.add('hidden');
+    el.classList.remove('flex');
+  }
+
+  let renderSigs = {};
+
+  // Skip re-render DOM jika data polling masih sama → kurangi flicker & reflow.
+  function shouldRender(key, obj) {
+    const sig = JSON.stringify(obj);
+    if (renderSigs[key] === sig) return false;
+    renderSigs[key] = sig;
+    return true;
+  }
+
+  function statusBadge(status) {
+    const m = STATUS_META[status] || { label: status, cls: 'bg-slate-100 text-slate-600 border-slate-200', icon: 'circle' };
+    return `<span class="inline-flex items-center gap-1 text-fluid-1 font-bold px-2 py-1 rounded-full border ${m.cls}">
+      <span class="material-symbols-outlined text-fluid-2">${m.icon}</span>${m.label}</span>`;
+  }
+
+  function tipeLabel(t) {
+    return { pegawai: 'Pegawai', keluarga: 'Keluarga', umum: 'Umum' }[t] || t || '';
+  }
+
+  function todayStr() {
+    const d = new Date();
+    return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
+  }
+
+  function toDateStr(d) {
+    const y = d.getFullYear();
+    const m = String(d.getMonth() + 1).padStart(2, '0');
+    const day = String(d.getDate()).padStart(2, '0');
+    return y + '-' + m + '-' + day;
+  }
+
+  function nowHHmm() {
+    const d = new Date();
+    return String(d.getHours()).padStart(2, '0') + ':' + String(d.getMinutes()).padStart(2, '0');
+  }
+
+  function hhmmToMin(hhmm) {
+    const p = String(hhmm || '').split(':');
+    return Number(p[0]) * 60 + Number(p[1] || 0);
+  }
+
+  function parseDate(dateStr) {
+    if (!dateStr) return null;
+    const s = String(dateStr).trim();
+    if (!s) return null;
+    if (/^\d{4}-\d{2}-\d{2}/.test(s)) {
+      const t = new Date(s.length === 10 ? s + 'T00:00:00' : s);
+      return isNaN(t) ? null : t;
+    }
+    const t = new Date(s);
+    return isNaN(t) ? null : t;
+  }
+
+  function fmtDate(dateStr) {
+    const d = parseDate(dateStr);
+    if (!d) return String(dateStr || '');
+    return d.toLocaleDateString('id-ID', { weekday: 'short', day: 'numeric', month: 'long', year: 'numeric' });
+  }
+
+  function fmtDateTime(dateStr, timeStr) {
+    const d = parseDate(dateStr);
+    if (!d) return (String(dateStr || '') + (timeStr ? ' ' + timeStr : '')).trim();
+    const date = d.toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' });
+    if (timeStr) return date + ' Pukul ' + String(timeStr) + ' WIB';
+    return date;
+  }
+
+  function shortDate(dateStr) {
+    if (!dateStr) return '';
+    const d = new Date(dateStr + 'T00:00:00');
+    if (isNaN(d)) return dateStr;
+    return d.toLocaleDateString('id-ID', { day: 'numeric', month: 'short' });
+  }
+
+  function showToast(msg, type = 'info') {
+    const toast = document.getElementById('toast');
+    const toastMsg = document.getElementById('toast-msg');
+    const toastIcon = document.getElementById('toast-icon');
+    if (!toast || !toastMsg || !toastIcon) return;
+    toastMsg.textContent = msg;
+    toastIcon.textContent = type === 'error' ? 'error' : 'check_circle';
+    toastIcon.className = 'material-symbols-outlined text-base ' + (type === 'error' ? 'text-red-400' : 'text-secondary');
+    toast.classList.remove('translate-y-16', 'opacity-0', 'pointer-events-none');
+    toast.classList.add('translate-y-0', 'opacity-100');
+    clearTimeout(toast._t);
+    toast._t = setTimeout(() => {
+      toast.classList.remove('translate-y-0', 'opacity-100');
+      toast.classList.add('translate-y-16', 'opacity-0', 'pointer-events-none');
+    }, 3000);
+  }
+
+  function escapeHtml(text) {
+    if (text === null || text === undefined) return '';
+    return String(text)
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;')
+      .replace(/'/g, '&#039;');
+  }
+</script>

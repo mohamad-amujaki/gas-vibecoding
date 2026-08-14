@@ -1,0 +1,741 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<base target="_top">
+<meta charset="UTF-8">
+<title>Survei Kesiapan Maturitas Sistem Merit 2026</title>
+<style>
+  :root {
+    --primary: #1e56c9;
+    --primary-dark: #14408f;
+    --accent-red: #d6293e;
+    --bg: #f4f6fb;
+    --card-bg: #ffffff;
+    --border: #e2e6ef;
+    --text: #1f2937;
+    --text-muted: #6b7280;
+    --green: #16a34a;
+    --radius: 10px;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    font-family: -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    background: var(--bg);
+    color: var(--text);
+  }
+  a { color: inherit; }
+
+  /* ---------- HEADER ---------- */
+  #topbar {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 14px 28px; background: #fff; border-bottom: 1px solid var(--border);
+    position: sticky; top: 0; z-index: 50;
+  }
+  #topbar .brand { display: flex; align-items: center; gap: 10px; font-weight: 700; color: var(--primary); font-size: 20px; }
+  #topbar .brand small { display: block; font-size: 11px; font-weight: 400; color: var(--text-muted); }
+  #topbar .user { display: flex; align-items: center; gap: 10px; font-size: 14px; text-align: right; }
+  #topbar .user .avatar {
+    width: 36px; height: 36px; border-radius: 50%; background: var(--accent-red);
+    color: #fff; display: flex; align-items: center; justify-content: center; font-weight: 700;
+  }
+  #topbar .user-name { font-weight: 600; }
+  #topbar .user-org { color: var(--text-muted); font-size: 12px; }
+  #adminToggleBtn {
+    margin-left: 12px; border: 1px solid var(--primary); color: var(--primary); background: #fff;
+    padding: 6px 12px; border-radius: 8px; cursor: pointer; font-size: 13px;
+  }
+
+  /* ---------- LAYOUT ---------- */
+  #layout { display: flex; max-width: 1400px; margin: 0 auto; gap: 20px; padding: 20px; align-items: flex-start; }
+  #sidebar {
+    width: 300px; flex-shrink: 0; background: var(--card-bg); border-radius: var(--radius);
+    border: 1px solid var(--border); padding: 16px; position: sticky; top: 76px; max-height: calc(100vh - 96px);
+    overflow-y: auto;
+  }
+  #main { flex: 1; min-width: 0; }
+
+  .autosave-pill {
+    display: inline-flex; align-items: center; gap: 6px; color: var(--green);
+    font-size: 13px; font-weight: 600; margin-bottom: 12px;
+  }
+  .autosave-pill .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--green); }
+  .autosave-pill.saving { color: #b45309; }
+  .autosave-pill.saving .dot { background: #b45309; }
+
+  .progress-label { font-size: 13px; color: var(--text-muted); margin-bottom: 6px; }
+  .progress-bar-track { height: 8px; background: #e5e9f2; border-radius: 999px; overflow: hidden; margin-bottom: 18px; }
+  .progress-bar-fill { height: 100%; background: linear-gradient(90deg, var(--primary), #4f8cff); transition: width .3s; }
+  .progress-percent { font-weight: 700; color: var(--primary); float: right; }
+
+  .bagian-group-label {
+    font-size: 11px; text-transform: uppercase; letter-spacing: .04em; color: var(--text-muted);
+    margin: 14px 0 6px;
+  }
+  .bagian-item {
+    display: flex; align-items: center; justify-content: space-between; gap: 8px;
+    padding: 10px 12px; border-radius: 8px; cursor: pointer; font-size: 13.5px; margin-bottom: 4px;
+    border: 1px solid transparent;
+  }
+  .bagian-item:hover { background: #f1f5fd; }
+  .bagian-item.active { background: #eaf1fd; border-color: var(--primary); color: var(--primary); font-weight: 600; }
+  .bagian-item .status-icon { width: 18px; height: 18px; flex-shrink: 0; border-radius: 50%; border: 2px solid #cbd5e1; }
+  .bagian-item .status-icon.done { background: var(--green); border-color: var(--green); position: relative; }
+  .bagian-item .status-icon.done::after {
+    content: '✓'; color: #fff; font-size: 11px; position: absolute; inset: 0; display: flex; align-items: center; justify-content: center;
+  }
+  .bagian-item .status-icon.partial { background: var(--primary); border-color: var(--primary); }
+  .bagian-item .count { font-size: 12px; color: var(--text-muted); }
+  .bagian-item.active .count { color: var(--primary); }
+
+  /* ---------- MAIN CARD ---------- */
+  .card { background: var(--card-bg); border: 1px solid var(--border); border-radius: var(--radius); padding: 24px 28px; margin-bottom: 18px; }
+  .intro-card h1 { margin: 0 0 10px; font-size: 22px; }
+  .intro-card p { color: #374151; line-height: 1.6; }
+  .intro-meta { display: flex; gap: 24px; margin-top: 14px; font-size: 13.5px; color: var(--text-muted); flex-wrap: wrap; }
+
+  .bagian-tag {
+    display: inline-block; background: #eaf1fd; color: var(--primary); font-size: 12px; font-weight: 700;
+    padding: 3px 10px; border-radius: 999px; margin-bottom: 8px;
+  }
+  .aspect-title { font-size: 19px; margin: 0 0 6px; }
+  .aspect-desc { color: var(--text-muted); font-size: 14px; line-height: 1.5; margin-bottom: 18px; }
+
+  .question-block { border: 1px solid var(--border); border-radius: var(--radius); margin-bottom: 18px; overflow: hidden; }
+  .question-header { background: #eaf1fd; color: var(--primary-dark); font-weight: 700; font-size: 13px; padding: 10px 18px; }
+  .question-body { padding: 18px; }
+  .subaspek-title { font-style: italic; font-weight: 700; font-size: 14.5px; margin: 0 0 6px; }
+  .question-text { font-size: 15px; font-weight: 600; margin: 0 0 8px; line-height: 1.5; }
+  .keterangan { font-size: 13px; color: var(--text-muted); margin-bottom: 10px; line-height: 1.5; }
+  .required-star { color: var(--accent-red); }
+
+  .option-list { display: flex; flex-direction: column; gap: 8px; margin: 12px 0; }
+  .option-item {
+    display: flex; align-items: flex-start; gap: 12px; border: 1px solid var(--border); border-radius: 8px;
+    padding: 10px 14px; cursor: pointer; transition: .15s;
+  }
+  .option-item:hover { border-color: #9db8ea; }
+  .option-item.selected { border-color: var(--primary); background: #f2f7ff; box-shadow: 0 0 0 1px var(--primary); }
+  .option-item input { margin-top: 3px; }
+  .option-item .score-badge {
+    width: 26px; height: 26px; border-radius: 50%; background: #eef2f8; color: var(--text-muted);
+    display: flex; align-items: center; justify-content: center; font-weight: 700; font-size: 13px; flex-shrink: 0;
+  }
+  .option-item.selected .score-badge { background: var(--primary); color: #fff; }
+  .option-item .option-label { font-size: 14px; line-height: 1.5; }
+
+  .evidence-box { border-top: 1px dashed var(--border); margin-top: 14px; padding-top: 14px; }
+  .evidence-box label.title { font-weight: 700; font-size: 13.5px; display: block; margin-bottom: 8px; }
+  .evidence-hints { font-size: 12.5px; color: var(--text-muted); margin: 0 0 10px 18px; line-height: 1.6; }
+  .file-list { display: flex; flex-direction: column; gap: 6px; margin-bottom: 10px; }
+  .file-chip {
+    display: flex; align-items: center; justify-content: space-between; gap: 10px; background: #f8fafc;
+    border: 1px solid var(--border); border-radius: 8px; padding: 8px 12px; font-size: 13px;
+  }
+  .file-chip .file-name { font-weight: 600; }
+  .file-chip .remove-file { color: var(--accent-red); cursor: pointer; font-size: 12px; border: none; background: none; }
+  .upload-btn {
+    display: inline-flex; align-items: center; gap: 6px; border: 1px solid var(--primary); color: var(--primary);
+    background: #fff; padding: 8px 14px; border-radius: 8px; cursor: pointer; font-size: 13px; font-weight: 600;
+  }
+  .upload-btn input[type=file] { display: none; }
+  .evidence-note-input {
+    width: 100%; margin-top: 10px; padding: 8px 10px; border: 1px solid var(--border); border-radius: 8px; font-size: 13px;
+  }
+
+  .nav-buttons { display: flex; justify-content: space-between; margin-top: 8px; }
+  .btn { padding: 10px 20px; border-radius: 8px; font-size: 14px; font-weight: 600; cursor: pointer; border: none; }
+  .btn-outline { background: #fff; border: 1px solid var(--border); color: var(--text); }
+  .btn-primary { background: var(--primary); color: #fff; }
+  .btn-primary:hover { background: var(--primary-dark); }
+  .btn-primary:disabled { opacity: .5; cursor: not-allowed; }
+  .btn-submit { background: var(--green); color: #fff; }
+
+  .hint-banner {
+    background: #fff7ed; border: 1px solid #fed7aa; color: #92400e; font-size: 13px; padding: 10px 14px;
+    border-radius: 8px; margin-bottom: 16px;
+  }
+
+  /* ---------- PROFILING ---------- */
+  .field-row { margin-bottom: 12px; }
+  .field-row label { display: block; font-size: 13.5px; font-weight: 600; margin-bottom: 4px; }
+  .field-row input, .field-row select {
+    width: 100%; padding: 9px 12px; border: 1px solid var(--border); border-radius: 8px; font-size: 14px;
+  }
+
+  /* ---------- ADMIN ---------- */
+  table.admin-table { width: 100%; border-collapse: collapse; font-size: 13.5px; }
+  table.admin-table th, table.admin-table td { text-align: left; padding: 10px 12px; border-bottom: 1px solid var(--border); }
+  table.admin-table th { background: #f8fafc; color: var(--text-muted); font-weight: 700; text-transform: uppercase; font-size: 11px; }
+  .status-badge { padding: 3px 10px; border-radius: 999px; font-size: 12px; font-weight: 700; }
+  .status-badge.submitted { background: #dcfce7; color: #166534; }
+  .status-badge.draft { background: #fef3c7; color: #92400e; }
+  .link-btn { color: var(--primary); cursor: pointer; text-decoration: underline; background: none; border: none; font-size: 13px; }
+
+  #loadingOverlay {
+    position: fixed; inset: 0; background: rgba(255,255,255,.7); display: flex; align-items: center; justify-content: center;
+    z-index: 999; font-weight: 700; color: var(--primary);
+  }
+  .hidden { display: none !important; }
+
+  @media (max-width: 900px) {
+    #layout { flex-direction: column; }
+    #sidebar { width: 100%; position: static; max-height: none; }
+  }
+</style>
+</head>
+<body>
+
+<div id="loadingOverlay"><div>Memuat survei...</div></div>
+
+<div id="topbar" class="hidden">
+  <div class="brand">
+    Aparatur Negara
+    <small>Survei Kesiapan Maturitas Sistem Merit</small>
+  </div>
+  <div style="display:flex; align-items:center;">
+    <div class="user">
+      <div style="text-align:right;">
+        <div class="user-name" id="userNameLabel">-</div>
+        <div class="user-org" id="userOrgLabel">-</div>
+      </div>
+      <div class="avatar" id="userAvatar">?</div>
+    </div>
+    <button id="adminToggleBtn" class="hidden" onclick="toggleAdmin()">Dashboard Admin</button>
+  </div>
+</div>
+
+<div id="layout" class="hidden">
+  <!-- SIDEBAR -->
+  <div id="sidebar">
+    <div class="autosave-pill" id="autosavePill"><span class="dot"></span><span id="autosaveText">Tersimpan otomatis</span></div>
+    <div class="progress-label">
+      <span id="progressCountLabel">0 dari 33 pertanyaan terjawab</span>
+      <span class="progress-percent" id="progressPercentLabel">0%</span>
+    </div>
+    <div class="progress-bar-track"><div class="progress-bar-fill" id="progressBarFill" style="width:0%"></div></div>
+    <div id="sidebarNav"></div>
+  </div>
+
+  <!-- MAIN -->
+  <div id="main">
+    <div id="userView"></div>
+    <div id="adminView" class="hidden"></div>
+  </div>
+</div>
+
+<script>
+  // ============================================================
+  // STATE
+  // ============================================================
+  let QUESTION_BANK = [];
+  let PROFILING_SECTION = null;
+  let SURVEY_META = null;
+  let CURRENT_USER = null;
+  let ANSWERS = {};           // {questionId: {score, evidenceNote, evidenceFileIds, evidenceFileNames}}
+  let SUBMISSION_STATUS = 'draft';
+  let CURRENT_BAGIAN = 'intro'; // 'intro' | aspect.no | 'profiling'
+  let AUTOSAVE_TIMER = null;
+  let PENDING_SAVE_QUEUE = {};
+  let ADMIN_MODE = false;
+
+  // ============================================================
+  // INIT
+  // ============================================================
+  window.addEventListener('DOMContentLoaded', function () {
+    google.script.run
+      .withSuccessHandler(onQuestionBankLoaded)
+      .withFailureHandler(onLoadError)
+      .getQuestionBank();
+  });
+
+  function onQuestionBankLoaded(bank) {
+    QUESTION_BANK = bank;
+    google.script.run
+      .withSuccessHandler(onMetaLoaded)
+      .withFailureHandler(onLoadError)
+      .getSurveyMeta();
+  }
+  function onMetaLoaded(meta) {
+    SURVEY_META = meta;
+    google.script.run
+      .withSuccessHandler(onProfilingLoaded)
+      .withFailureHandler(onLoadError)
+      .getProfilingSection();
+  }
+  function onProfilingLoaded(section) {
+    PROFILING_SECTION = section;
+    google.script.run
+      .withSuccessHandler(onDraftLoaded)
+      .withFailureHandler(onLoadError)
+      .loadDraft();
+  }
+  function onDraftLoaded(draft) {
+    CURRENT_USER = draft.user;
+    ANSWERS = draft.answers || {};
+    SUBMISSION_STATUS = draft.status || 'draft';
+    renderShell();
+    renderSidebar();
+    renderIntro();
+    document.getElementById('loadingOverlay').classList.add('hidden');
+    document.getElementById('topbar').classList.remove('hidden');
+    document.getElementById('layout').classList.remove('hidden');
+    startAutosaveLoop();
+  }
+  function onLoadError(err) {
+    document.getElementById('loadingOverlay').innerHTML =
+      '<div style="max-width:420px;text-align:center;color:#b91c1c;">Gagal memuat survei: ' + (err.message || err) + '</div>';
+  }
+
+  function renderShell() {
+    document.getElementById('userNameLabel').textContent = CURRENT_USER.name;
+    document.getElementById('userOrgLabel').textContent = CURRENT_USER.organisasi;
+    document.getElementById('userAvatar').textContent = (CURRENT_USER.name || '?').charAt(0).toUpperCase();
+    if (CURRENT_USER.isAdmin) {
+      document.getElementById('adminToggleBtn').classList.remove('hidden');
+    }
+  }
+
+  // ============================================================
+  // APPLICABILITY / ROUTING
+  // ============================================================
+  function isApplicable(q) {
+    if (!q.dependsOn) return true;
+    const dep = ANSWERS[q.dependsOn.questionId];
+    if (!dep) return false;
+    return q.dependsOn.values.map(String).indexOf(String(dep.score)) !== -1;
+  }
+
+  function flattenQuestions() {
+    const all = [];
+    QUESTION_BANK.forEach(a => a.questions.forEach(q => all.push(Object.assign({ aspectNo: a.no, aspectTitle: a.title }, q))));
+    return all;
+  }
+
+  function scoredQuestions() {
+    return flattenQuestions().filter(q => q.type === 'score');
+  }
+
+  // ============================================================
+  // PROGRESS
+  // ============================================================
+  function computeProgress() {
+    const applicable = scoredQuestions().filter(isApplicable);
+    const answered = applicable.filter(q => {
+      const a = ANSWERS[q.id];
+      return a && a.score !== '' && a.score !== undefined && a.score !== null;
+    });
+    return { total: applicable.length, answered: answered.length, percent: applicable.length ? Math.round(answered.length / applicable.length * 100) : 0 };
+  }
+
+  function aspectProgress(aspectNo) {
+    const qs = QUESTION_BANK.find(a => a.no === aspectNo).questions.filter(q => q.type === 'score').filter(isApplicable);
+    const answered = qs.filter(q => {
+      const a = ANSWERS[q.id];
+      return a && a.score !== '' && a.score !== undefined && a.score !== null;
+    });
+    return { total: qs.length, answered: answered.length };
+  }
+
+  // ============================================================
+  // SIDEBAR
+  // ============================================================
+  function renderSidebar() {
+    const nav = document.getElementById('sidebarNav');
+    let html = '';
+    QUESTION_BANK.forEach(aspect => {
+      const prog = aspectProgress(aspect.no);
+      const statusClass = prog.answered === 0 ? '' : (prog.answered >= prog.total ? 'done' : 'partial');
+      const active = CURRENT_BAGIAN === aspect.no ? 'active' : '';
+      html += '<div class="bagian-group-label">Bagian ' + aspect.no + '</div>';
+      html += '<div class="bagian-item ' + active + '" onclick="goToBagian(' + aspect.no + ')">' +
+        '<div style="display:flex;align-items:center;gap:10px;"><span class="status-icon ' + statusClass + '"></span><span>' + aspect.no + '. ' + aspect.title + '</span></div>' +
+        '<span class="count">' + prog.answered + '/' + prog.total + '</span></div>';
+    });
+    html += '<div class="bagian-group-label">Bagian 9</div>';
+    const profDone = ANSWERS.__profiling_done ? 'done' : '';
+    html += '<div class="bagian-item ' + (CURRENT_BAGIAN === 'profiling' ? 'active' : '') + '" onclick="goToBagian(\'profiling\')">' +
+      '<div style="display:flex;align-items:center;gap:10px;"><span class="status-icon ' + profDone + '"></span><span>9. Profiling Data Penghargaan</span></div></div>';
+    nav.innerHTML = html;
+
+    const p = computeProgress();
+    document.getElementById('progressCountLabel').textContent = p.answered + ' dari ' + p.total + ' pertanyaan terjawab';
+    document.getElementById('progressPercentLabel').textContent = p.percent + '%';
+    document.getElementById('progressBarFill').style.width = p.percent + '%';
+  }
+
+  function goToBagian(no) {
+    CURRENT_BAGIAN = no;
+    renderSidebar();
+    if (no === 'profiling') renderProfiling();
+    else renderAspect(no);
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  }
+
+  // ============================================================
+  // INTRO
+  // ============================================================
+  function renderIntro() {
+    const el = document.getElementById('userView');
+    const total = scoredQuestions().length;
+    el.innerHTML =
+      '<div class="card intro-card">' +
+      '<h1>' + SURVEY_META.title + '</h1>' +
+      '<p>' + SURVEY_META.description + '</p>' +
+      '<div class="intro-meta">' +
+      '<div>&#128337; ' + SURVEY_META.periodeMulai + ' &mdash; ' + SURVEY_META.periodeSelesai + '</div>' +
+      '<div>&#10067; ' + total + ' Pertanyaan</div>' +
+      '</div>' +
+      '<div style="margin-top:20px;"><button class="btn btn-primary" onclick="goToBagian(1)">Mulai Isi Survei &rarr;</button></div>' +
+      '</div>';
+  }
+
+  // ============================================================
+  // RENDER ASPECT (bagian)
+  // ============================================================
+  function renderAspect(aspectNo) {
+    const aspect = QUESTION_BANK.find(a => a.no === aspectNo);
+    const el = document.getElementById('userView');
+    let html = '<div class="card">' +
+      '<span class="bagian-tag">Bagian ' + aspect.no + '</span>' +
+      '<h2 class="aspect-title">' + aspect.no + '. ' + aspect.title + '</h2>' +
+      '<p class="aspect-desc">' + aspect.description + '</p>';
+
+    let qCounter = 0;
+    aspect.questions.forEach(q => {
+      if (!isApplicable(q)) return;
+      qCounter++;
+      html += renderQuestionBlock(q, qCounter, aspect.no);
+    });
+
+    const idx = QUESTION_BANK.findIndex(a => a.no === aspectNo);
+    const prevAspect = idx > 0 ? QUESTION_BANK[idx - 1] : null;
+    const nextAspect = idx < QUESTION_BANK.length - 1 ? QUESTION_BANK[idx + 1] : 'profiling';
+
+    html += '<div class="nav-buttons">' +
+      (prevAspect ? '<button class="btn btn-outline" onclick="goToBagian(' + prevAspect.no + ')">&larr; Sebelumnya</button>' : '<span></span>') +
+      (nextAspect === 'profiling'
+        ? '<button class="btn btn-primary" onclick="goToBagian(\'profiling\')">Selanjutnya &rarr;</button>'
+        : '<button class="btn btn-primary" onclick="goToBagian(' + nextAspect.no + ')">Selanjutnya &rarr;</button>') +
+      '</div></div>';
+
+    el.innerHTML = html;
+    bindQuestionEvents();
+  }
+
+  function renderQuestionBlock(q, num, aspectNo) {
+    const ans = ANSWERS[q.id] || {};
+    const isGate = q.type === 'gate';
+    let html = '<div class="question-block" data-qid="' + q.id + '">' +
+      '<div class="question-header">Pertanyaan ' + num + '</div>' +
+      '<div class="question-body">' +
+      '<div class="subaspek-title">' + q.subaspek + '</div>' +
+      '<div class="question-text">' + q.question + (isGate ? '' : ' <span class="required-star">*</span>') + '</div>';
+    if (q.keterangan) html += '<div class="keterangan"><strong>Keterangan:</strong> ' + q.keterangan + '</div>';
+    html += '<div style="font-size:12.5px;color:#6b7280;font-style:italic;margin-bottom:6px;">Pilih salah satu jawaban</div>';
+    html += '<div class="option-list">';
+    q.options.forEach(opt => {
+      const selected = String(ans.score) === String(opt.value) ? 'selected' : '';
+      const badge = isGate ? '' : '<span class="score-badge">' + opt.value + '</span>';
+      html += '<label class="option-item ' + selected + '">' +
+        '<input type="radio" name="' + q.id + '" value="' + opt.value + '" ' + (selected ? 'checked' : '') + ' style="display:none;">' +
+        badge + '<span class="option-label">' + opt.label + '</span></label>';
+    });
+    html += '</div>';
+
+    if (!isGate && q.evidenceRequired) {
+      html += '<div class="evidence-box">' +
+        '<label class="title">Bukti pendukung <span class="required-star">*</span></label>';
+      if (q.evidenceHints && q.evidenceHints.length) {
+        html += '<ul class="evidence-hints">' + q.evidenceHints.map(h => '<li>' + h + '</li>').join('') + '</ul>';
+      }
+      html += '<div class="file-list" id="fileList_' + q.id + '">' + renderFileChips(q.id, ans) + '</div>';
+      html += '<label class="upload-btn">&#128206; Lampirkan bukti pendukung<input type="file" multiple data-qid="' + q.id + '" onchange="handleFileUpload(event)"></label>';
+      html += '<input type="text" class="evidence-note-input" placeholder="Catatan bukti pendukung (opsional)" value="' + escapeAttr(ans.evidenceNote || '') + '" data-qid="' + q.id + '" onchange="handleNoteChange(event)">';
+      html += '</div>';
+    }
+    html += '</div></div>';
+    return html;
+  }
+
+  function renderFileChips(qid, ans) {
+    const ids = ans.evidenceFileIds || [];
+    const names = ans.evidenceFileNames || [];
+    return ids.map((id, i) => (
+      '<div class="file-chip"><span class="file-name">&#128196; ' + (names[i] || id) + '</span>' +
+      '<button class="remove-file" onclick="removeEvidence(\'' + qid + '\',\'' + id + '\')">Hapus</button></div>'
+    )).join('');
+  }
+
+  function bindQuestionEvents() {
+    document.querySelectorAll('.question-block').forEach(block => {
+      const qid = block.getAttribute('data-qid');
+      block.querySelectorAll('input[type=radio]').forEach(radio => {
+        radio.addEventListener('change', function () {
+          setAnswerScore(qid, this.value);
+        });
+      });
+    });
+  }
+
+  function setAnswerScore(qid, value) {
+    if (!ANSWERS[qid]) ANSWERS[qid] = {};
+    ANSWERS[qid].score = value;
+    queueSave(qid);
+    renderSidebar();
+    // re-render current aspect to refresh selection highlight + reveal/hide dependent gate questions
+    if (typeof CURRENT_BAGIAN === 'number') renderAspect(CURRENT_BAGIAN);
+  }
+
+  function handleNoteChange(e) {
+    const qid = e.target.getAttribute('data-qid');
+    if (!ANSWERS[qid]) ANSWERS[qid] = {};
+    ANSWERS[qid].evidenceNote = e.target.value;
+    queueSave(qid);
+  }
+
+  function handleFileUpload(e) {
+    const qid = e.target.getAttribute('data-qid');
+    const files = Array.from(e.target.files);
+    if (!files.length) return;
+    setAutosaveState('saving', 'Mengunggah file...');
+    let remaining = files.length;
+    files.forEach(file => {
+      const reader = new FileReader();
+      reader.onload = function () {
+        const base64 = reader.result.split(',')[1];
+        google.script.run
+          .withSuccessHandler(function (res) {
+            remaining--;
+            if (res.ok) {
+              if (!ANSWERS[qid]) ANSWERS[qid] = {};
+              if (!ANSWERS[qid].evidenceFileIds) ANSWERS[qid].evidenceFileIds = [];
+              if (!ANSWERS[qid].evidenceFileNames) ANSWERS[qid].evidenceFileNames = [];
+              ANSWERS[qid].evidenceFileIds.push(res.fileId);
+              ANSWERS[qid].evidenceFileNames.push(res.fileName);
+              document.getElementById('fileList_' + qid).innerHTML = renderFileChips(qid, ANSWERS[qid]);
+              queueSave(qid, true);
+            } else {
+              alert('Gagal mengunggah ' + file.name + ': ' + res.message);
+            }
+            if (remaining === 0) setAutosaveState('idle', 'Tersimpan otomatis');
+          })
+          .withFailureHandler(function (err) {
+            remaining--;
+            alert('Gagal mengunggah ' + file.name + ': ' + err.message);
+            if (remaining === 0) setAutosaveState('idle', 'Tersimpan otomatis');
+          })
+          .uploadEvidence({ filename: file.name, mimeType: file.type || 'application/octet-stream', base64Data: base64, questionId: qid });
+      };
+      reader.readAsDataURL(file);
+    });
+    e.target.value = '';
+  }
+
+  function removeEvidence(qid, fileId) {
+    if (!confirm('Hapus bukti dukung ini?')) return;
+    google.script.run.withSuccessHandler(function () {
+      const a = ANSWERS[qid];
+      const i = a.evidenceFileIds.indexOf(fileId);
+      if (i > -1) { a.evidenceFileIds.splice(i, 1); a.evidenceFileNames.splice(i, 1); }
+      document.getElementById('fileList_' + qid).innerHTML = renderFileChips(qid, a);
+      queueSave(qid, true);
+    }).deleteEvidence(fileId);
+  }
+
+  function escapeAttr(s) { return String(s).replace(/"/g, '&quot;'); }
+
+  // ============================================================
+  // AUTOSAVE (setiap 30 detik + saat ada perubahan yang di-queue)
+  // ============================================================
+  function queueSave(qid, immediate) {
+    PENDING_SAVE_QUEUE[qid] = true;
+    if (immediate) flushSaveQueue();
+  }
+
+  function startAutosaveLoop() {
+    AUTOSAVE_TIMER = setInterval(flushSaveQueue, 30000);
+  }
+
+  function flushSaveQueue() {
+    const ids = Object.keys(PENDING_SAVE_QUEUE);
+    if (!ids.length) return;
+    PENDING_SAVE_QUEUE = {};
+    setAutosaveState('saving', 'Menyimpan...');
+    let remaining = ids.length;
+    ids.forEach(qid => {
+      const q = flattenQuestions().find(x => x.id === qid);
+      const ans = ANSWERS[qid] || {};
+      google.script.run
+        .withSuccessHandler(function () {
+          remaining--;
+          if (remaining === 0) setAutosaveState('idle', 'Tersimpan otomatis');
+        })
+        .withFailureHandler(function () {
+          remaining--;
+          if (remaining === 0) setAutosaveState('idle', 'Gagal tersimpan — coba lagi');
+        })
+        .saveAnswer({
+          questionId: qid,
+          aspectNo: q ? q.aspectNo : '',
+          score: ans.score,
+          evidenceNote: ans.evidenceNote,
+          evidenceFileIds: ans.evidenceFileIds,
+          evidenceFileNames: ans.evidenceFileNames,
+        });
+    });
+  }
+
+  function setAutosaveState(state, text) {
+    const pill = document.getElementById('autosavePill');
+    pill.className = 'autosave-pill' + (state === 'saving' ? ' saving' : '');
+    document.getElementById('autosaveText').textContent = text;
+  }
+
+  window.addEventListener('beforeunload', flushSaveQueue);
+
+  // ============================================================
+  // PROFILING (Bagian 9)
+  // ============================================================
+  function renderProfiling() {
+    const el = document.getElementById('userView');
+    let html = '<div class="card">' +
+      '<span class="bagian-tag">Bagian 9</span>' +
+      '<h2 class="aspect-title">' + PROFILING_SECTION.title + '</h2>' +
+      '<p class="aspect-desc">' + PROFILING_SECTION.description + '</p>' +
+      '<div class="question-block"><div class="question-header">Pertanyaan 1</div><div class="question-body">' +
+      '<div class="question-text">' + PROFILING_SECTION.question + ' <span class="required-star">*</span></div>' +
+      '<div class="option-list">' +
+      '<label class="option-item" id="profYes"><input type="radio" name="prof_pernah" value="Ya" onchange="onProfilingAnswerChange()" style="margin-right:8px;">Ya</label>' +
+      '<label class="option-item" id="profNo"><input type="radio" name="prof_pernah" value="Tidak" onchange="onProfilingAnswerChange()" style="margin-right:8px;">Tidak</label>' +
+      '</div>' +
+      '<div id="profExtraFields" class="hidden">' +
+      '<div class="field-row"><label>Nama Penghargaan</label><input type="text" id="prof_nama"></div>' +
+      '<div class="field-row"><label>Penerima Penghargaan</label><input type="text" id="prof_penerima"></div>' +
+      '<div class="field-row"><label>Tahun Perolehan</label><input type="text" id="prof_tahun"></div>' +
+      '<div class="field-row"><label>Penyelenggara/Pemberi Penghargaan</label><input type="text" id="prof_penyelenggara"></div>' +
+      '</div>' +
+      '</div></div>' +
+      '<div class="nav-buttons">' +
+      '<button class="btn btn-outline" onclick="goToBagian(8)">&larr; Sebelumnya</button>' +
+      '<button class="btn btn-submit" onclick="handleSubmitSurvey()">Kirim Jawaban</button>' +
+      '</div></div>';
+    el.innerHTML = html;
+
+    google.script.run.withSuccessHandler(function (draft) {
+      if (!draft) return;
+      if (draft.pernahMenerima) {
+        document.querySelector('input[name=prof_pernah][value="' + draft.pernahMenerima + '"]').checked = true;
+        if (draft.pernahMenerima === 'Ya') document.getElementById('profExtraFields').classList.remove('hidden');
+      }
+      if (draft.namaPenghargaan) document.getElementById('prof_nama').value = draft.namaPenghargaan;
+      if (draft.penerima) document.getElementById('prof_penerima').value = draft.penerima;
+      if (draft.tahun) document.getElementById('prof_tahun').value = draft.tahun;
+      if (draft.penyelenggara) document.getElementById('prof_penyelenggara').value = draft.penyelenggara;
+    }).loadProfilingDraft();
+  }
+
+  function onProfilingAnswerChange() {
+    const val = document.querySelector('input[name=prof_pernah]:checked').value;
+    document.getElementById('profExtraFields').classList.toggle('hidden', val !== 'Ya');
+    saveProfilingNow();
+  }
+
+  function saveProfilingNow() {
+    const checked = document.querySelector('input[name=prof_pernah]:checked');
+    if (!checked) return;
+    const payload = {
+      pernahMenerima: checked.value,
+      namaPenghargaan: document.getElementById('prof_nama') ? document.getElementById('prof_nama').value : '',
+      penerima: document.getElementById('prof_penerima') ? document.getElementById('prof_penerima').value : '',
+      tahun: document.getElementById('prof_tahun') ? document.getElementById('prof_tahun').value : '',
+      penyelenggara: document.getElementById('prof_penyelenggara') ? document.getElementById('prof_penyelenggara').value : '',
+    };
+    ANSWERS.__profiling_done = true;
+    google.script.run.saveProfiling(payload);
+  }
+
+  // ============================================================
+  // SUBMIT
+  // ============================================================
+  function handleSubmitSurvey() {
+    saveProfilingNow();
+    flushSaveQueue();
+    if (!confirm('Setelah dikirim, jawaban tidak dapat diubah kembali. Kirim survei sekarang?')) return;
+    setAutosaveState('saving', 'Mengirim survei...');
+    google.script.run
+      .withSuccessHandler(function (res) {
+        setAutosaveState('idle', 'Tersimpan otomatis');
+        if (res.ok) {
+          alert(res.message);
+          SUBMISSION_STATUS = 'submitted';
+        } else {
+          alert(res.message);
+        }
+      })
+      .withFailureHandler(function (err) {
+        setAutosaveState('idle', 'Tersimpan otomatis');
+        alert('Gagal mengirim: ' + err.message);
+      })
+      .submitForm();
+  }
+
+  // ============================================================
+  // ADMIN DASHBOARD
+  // ============================================================
+  function toggleAdmin() {
+    ADMIN_MODE = !ADMIN_MODE;
+    document.getElementById('userView').classList.toggle('hidden', ADMIN_MODE);
+    document.getElementById('adminView').classList.toggle('hidden', !ADMIN_MODE);
+    document.getElementById('sidebar').classList.toggle('hidden', ADMIN_MODE);
+    document.getElementById('adminToggleBtn').textContent = ADMIN_MODE ? 'Kembali ke Survei' : 'Dashboard Admin';
+    if (ADMIN_MODE) renderAdminList();
+  }
+
+  function renderAdminList() {
+    const el = document.getElementById('adminView');
+    el.innerHTML = '<div class="card"><h2 class="aspect-title">Dashboard Admin — Rekap Submission</h2>' +
+      '<button class="btn btn-outline" style="margin-bottom:14px;" onclick="google.script.run.withSuccessHandler(function(r){alert(\'Sheet baru dibuat: \'+r.sheetName)}).adminExportToSheet()">Export ke Sheet Baru</button>' +
+      '<div id="adminTableWrap">Memuat data...</div></div>';
+    google.script.run
+      .withSuccessHandler(function (rows) {
+        let html = '<table class="admin-table"><thead><tr><th>Instansi</th><th>Email</th><th>Status</th><th>Progress</th><th>Update Terakhir</th><th></th></tr></thead><tbody>';
+        rows.forEach(r => {
+          html += '<tr><td>' + (r.organisasi || '-') + '</td><td>' + r.email + '</td>' +
+            '<td><span class="status-badge ' + r.status + '">' + r.status + '</span></td>' +
+            '<td>' + r.progressPercent + '%</td>' +
+            '<td>' + (r.updatedAt ? new Date(r.updatedAt).toLocaleString('id-ID') : '-') + '</td>' +
+            '<td><button class="link-btn" onclick="viewAdminDetail(\'' + r.email + '\')">Lihat detail</button></td></tr>';
+        });
+        html += '</tbody></table>';
+        document.getElementById('adminTableWrap').innerHTML = html || '<p>Belum ada submission.</p>';
+      })
+      .withFailureHandler(function (err) {
+        document.getElementById('adminTableWrap').innerHTML = '<p style="color:#b91c1c;">' + err.message + '</p>';
+      })
+      .adminGetAllSubmissions();
+  }
+
+  function viewAdminDetail(email) {
+    google.script.run
+      .withSuccessHandler(function (detail) {
+        let html = '<div class="card"><button class="link-btn" onclick="renderAdminList()">&larr; Kembali ke daftar</button>' +
+          '<h2 class="aspect-title" style="margin-top:10px;">Detail Jawaban — ' + email + '</h2>' +
+          '<h3>Skor rata-rata per Aspek</h3><ul>';
+        Object.keys(detail.aspectScores).forEach(no => {
+          const aspect = QUESTION_BANK.find(a => String(a.no) === String(no));
+          html += '<li>' + (aspect ? aspect.title : 'Aspek ' + no) + ': <strong>' + detail.aspectScores[no] + '</strong></li>';
+        });
+        html += '</ul><h3>Rincian Jawaban</h3><table class="admin-table"><thead><tr><th>Pertanyaan</th><th>Skor</th><th>Bukti</th><th>Update</th></tr></thead><tbody>';
+        detail.answers.forEach(a => {
+          html += '<tr><td>' + a.questionId + '</td><td>' + a.score + '</td><td>' + (a.evidenceFileNames || '-') + '</td>' +
+            '<td>' + (a.updatedAt ? new Date(a.updatedAt).toLocaleString('id-ID') : '-') + '</td></tr>';
+        });
+        html += '</tbody></table></div>';
+        document.getElementById('adminView').innerHTML = html;
+      })
+      .adminGetSubmissionDetail(email);
+  }
+</script>
+</body>
+</html>

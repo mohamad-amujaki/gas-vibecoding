@@ -1,0 +1,14 @@
+{
+  "name": "upk-queue-build",
+  "private": true,
+  "version": "1.0.0",
+  "description": "Build tooling untuk Pendaftaran & Antrian UPK Kemenkes (Apps Script). Jalankan `npm run build` lalu upload file HTML hasil build ke Apps Script.",
+  "type": "module",
+  "scripts": {
+    "build": "node build.mjs",
+    "build:tailwind": "tailwindcss -c tailwind.config.cjs -i assets/input.css -o dist/tailwind.css --minify"
+  },
+  "devDependencies": {
+    "tailwindcss": "^3.4.17"
+  }
+}

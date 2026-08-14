@@ -1,0 +1,917 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Pendaftaran &amp; Antrian UPK Kemenkes</title>
+
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@20..48,100..700,0..1,-50..200&display=swap" rel="stylesheet">
+
+
+  <?!= include('Style'); ?>
+  <?!= include('Chart'); ?>
+</head>
+<body class="bg-mist text-ink antialiased min-h-screen">
+
+  <!-- ====================== VIEW: AUTH / LANDING ====================== -->
+  <div id="view-auth" class="hidden">
+    <div class="min-h-screen flex flex-col">
+
+      <!-- Navbar -->
+      <nav class="sticky top-0 z-30 bg-white/85 backdrop-blur border-b border-line">
+        <div class="max-w-[90rem] mx-auto px-4 md:px-6 lg:px-8 h-16 flex items-center justify-between">
+          <div class="flex items-center gap-3">
+            <div class="w-10 h-10 rounded-xl bg-primary text-white flex items-center justify-center shadow-soft">
+              <span class="material-symbols-outlined">health_and_safety</span>
+            </div>
+            <div>
+              <p class="font-extrabold text-sm leading-tight">UPK Kantor Pusat Kemenkes</p>
+              <p class="text-fluid-1 text-ink-muted">Pendaftaran &amp; Antrian</p>
+            </div>
+          </div>
+          <a href="javascript:void(0)" onclick="openDisplayPage()"
+             class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-fluid-2 font-semibold text-ink-muted hover:text-primary hover:bg-primary-light border border-line transition-all">
+            <span class="material-symbols-outlined text-base">monitor</span>
+            Layar Antrian
+          </a>
+        </div>
+      </nav>
+
+      <!-- Hero -->
+      <header class="relative overflow-hidden">
+        <div class="absolute -top-24 -right-24 w-96 h-96 rounded-full bg-primary/10 blur-3xl"></div>
+        <div class="absolute -bottom-32 -left-24 w-96 h-96 rounded-full bg-secondary/10 blur-3xl"></div>
+        <div class="max-w-[90rem] mx-auto px-4 md:px-6 lg:px-8 pt-12 pb-8 md:pt-16 md:pb-12 grid md:grid-cols-2 gap-10 items-center relative">
+          <div class="space-y-5">
+            <span class="inline-flex items-center gap-1.5 text-fluid-1 font-semibold text-primary bg-primary-light border border-primary/20 rounded-full px-3 py-1">
+              <span class="material-symbols-outlined text-sm">verified</span>
+              Unit Pelayanan Kesehatan
+            </span>
+            <h1 class="text-3xl md:text-4xl font-extrabold tracking-tight leading-tight">
+              Layanan Kesehatan<br>
+              <span class="text-primary">Tanpa Antre Berdesakan</span>
+            </h1>
+            <p class="text-sm text-ink-muted leading-relaxed">
+              Daftar antrian online untuk Poli Umum, Gigi, Jantung, dan Paru.
+              Melayani Pegawai, Keluarga Pegawai, dan Masyarakat Umum dengan jadwal terjadwal maupun walk-in.
+            </p>
+            <div class="flex flex-wrap gap-3">
+              <button type="button" onclick="openAuthTab('register')"
+                class="inline-flex items-center gap-2 px-5 py-3 rounded-xl bg-primary hover:bg-primary-dark text-white text-sm font-bold shadow-soft transition-all">
+                <span class="material-symbols-outlined">person_add</span> Daftar Akun
+              </button>
+              <button type="button" onclick="openAuthTab('login')"
+                class="inline-flex items-center gap-2 px-5 py-3 rounded-xl bg-white hover:bg-primary-light text-ink text-sm font-bold border border-line transition-all">
+                <span class="material-symbols-outlined">login</span> Masuk
+              </button>
+            </div>
+          </div>
+
+          <!-- Auth card -->
+          <div id="auth-card" class="bg-white rounded-2xl border border-line shadow-soft p-6 space-y-5 scroll-mt-24">
+            <div class="grid grid-cols-2 gap-1.5 p-1 bg-mist rounded-xl border border-line">
+              <button type="button" id="auth-tab-login" onclick="openAuthTab('login')"
+                class="py-2 text-fluid-2 font-semibold rounded-lg bg-white text-ink shadow-sm border border-line transition-all">Masuk</button>
+              <button type="button" id="auth-tab-register" onclick="openAuthTab('register')"
+                class="py-2 text-fluid-2 font-semibold rounded-lg text-ink-muted hover:text-primary transition-all">Daftar Akun</button>
+            </div>
+
+            <!-- Login panel -->
+            <form id="auth-panel-login" onsubmit="handleLogin(event)" class="space-y-3">
+              <div class="space-y-1.5">
+                <label class="text-fluid-2 font-medium text-ink-muted" for="login-username">Username</label>
+                <input type="text" id="login-username" placeholder="Contoh: pegawai1" required
+                  class="w-full text-sm bg-mist border border-line rounded-xl px-3.5 py-2.5 focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary transition-all">
+              </div>
+              <div class="space-y-1.5">
+                <label class="text-fluid-2 font-medium text-ink-muted" for="login-password">Password</label>
+                <input type="password" id="login-password" placeholder="••••••••" required
+                  class="w-full text-sm bg-mist border border-line rounded-xl px-3.5 py-2.5 focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary transition-all">
+              </div>
+              <button type="submit" id="btn-login"
+                class="w-full py-3 rounded-xl bg-primary hover:bg-primary-dark text-white text-sm font-bold transition-all shadow-soft inline-flex items-center justify-center gap-2">
+                <span class="material-symbols-outlined">login</span> Masuk ke Akun
+              </button>
+              <p class="text-fluid-1 text-ink-faint text-center">Petugas loket, dokter, dan admin juga login di sini.</p>
+            </form>
+
+            <!-- Register panel -->
+            <form id="auth-panel-register" onsubmit="handleRegister(event)" class="hidden space-y-3">
+              <div class="space-y-1.5">
+                <label class="text-fluid-2 font-medium text-ink-muted" for="reg-nama">Nama Lengkap</label>
+                <input type="text" id="reg-nama" placeholder="Contoh: Budi Santoso" required
+                  class="w-full text-sm bg-mist border border-line rounded-xl px-3.5 py-2.5 focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary transition-all">
+              </div>
+
+              <div class="space-y-1.5">
+                <label class="text-fluid-2 font-medium text-ink-muted">Tipe Pasien</label>
+                <div class="grid grid-cols-3 gap-1.5 p-1 bg-mist border border-line rounded-xl" id="reg-tipe-wrap">
+                  <button type="button" data-tipe="pegawai" onclick="setTipePasien('pegawai')"
+                    class="py-2 text-fluid-1 font-semibold rounded-lg transition-all inline-flex items-center justify-center gap-1">
+                    <span class="material-symbols-outlined text-sm">badge</span> Pegawai
+                  </button>
+                  <button type="button" data-tipe="keluarga" onclick="setTipePasien('keluarga')"
+                    class="py-2 text-fluid-1 font-semibold rounded-lg transition-all inline-flex items-center justify-center gap-1">
+                    <span class="material-symbols-outlined text-sm">family_restroom</span> Keluarga
+                  </button>
+                  <button type="button" data-tipe="umum" onclick="setTipePasien('umum')"
+                    class="py-2 text-fluid-1 font-semibold rounded-lg transition-all inline-flex items-center justify-center gap-1">
+                    <span class="material-symbols-outlined text-sm">public</span> Umum
+                  </button>
+                </div>
+              </div>
+
+              <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div class="space-y-1.5">
+                  <label class="text-fluid-2 font-medium text-ink-muted" for="reg-identitas" id="reg-identitas-label">NIP</label>
+                  <input type="text" id="reg-identitas" placeholder="Contoh: 198507012005011001" required
+                    class="w-full text-sm bg-mist border border-line rounded-xl px-3.5 py-2.5 focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary transition-all">
+                </div>
+                <div id="reg-unit-wrap" class="space-y-1.5">
+                  <label class="text-fluid-2 font-medium text-ink-muted" for="reg-unit">Unit Kerja</label>
+                  <input type="text" id="reg-unit" placeholder="Contoh: Biro Kepegawaian"
+                    class="w-full text-sm bg-mist border border-line rounded-xl px-3.5 py-2.5 focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary transition-all">
+                </div>
+                <div class="space-y-1.5">
+                  <label class="text-fluid-2 font-medium text-ink-muted" for="reg-hp">No. HP</label>
+                  <input type="tel" id="reg-hp" placeholder="Contoh: 0813 1111 2222" required
+                    class="w-full text-sm bg-mist border border-line rounded-xl px-3.5 py-2.5 focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary transition-all">
+                </div>
+                <div class="space-y-1.5">
+                  <label class="text-fluid-2 font-medium text-ink-muted" for="reg-email">Email (opsional)</label>
+                  <input type="email" id="reg-email" placeholder="nama@contoh.com"
+                    class="w-full text-sm bg-mist border border-line rounded-xl px-3.5 py-2.5 focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary transition-all">
+                </div>
+                <div class="space-y-1.5">
+                  <label class="text-fluid-2 font-medium text-ink-muted" for="reg-username">Username</label>
+                  <input type="text" id="reg-username" placeholder="Minimal 3 karakter" required
+                    class="w-full text-sm bg-mist border border-line rounded-xl px-3.5 py-2.5 focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary transition-all">
+                </div>
+                <div class="space-y-1.5">
+                  <label class="text-fluid-2 font-medium text-ink-muted" for="reg-password">Password</label>
+                  <input type="password" id="reg-password" placeholder="Minimal 6 karakter" required
+                    class="w-full text-sm bg-mist border border-line rounded-xl px-3.5 py-2.5 focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary transition-all">
+                </div>
+              </div>
+
+              <button type="submit" id="btn-register"
+                class="w-full py-3 rounded-xl bg-secondary hover:bg-secondary-dark text-white text-sm font-bold transition-all shadow-soft inline-flex items-center justify-center gap-2">
+                <span class="material-symbols-outlined">how_to_reg</span> Daftar Akun Baru
+              </button>
+            </form>
+          </div>
+        </div>
+      </header>
+
+      <!-- Poli info strip -->
+      <section class="max-w-[90rem] mx-auto px-4 md:px-6 lg:px-8 pb-14">
+        <p class="text-fluid-2 font-semibold uppercase tracking-wider text-ink-muted mb-3">4 Poli Layanan</p>
+        <div id="landing-polis" class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">
+          <!-- diisi via JS -->
+        </div>
+      </section>
+
+      <footer class="mt-auto py-5 text-center text-fluid-2 text-ink-faint border-t border-line bg-white/60">
+        <p>UPK Kantor Pusat Kemenkes — Sistem Pendaftaran &amp; Antrian &middot; Google Apps Script + Google Sheet</p>
+      </footer>
+    </div>
+  </div>
+
+  <!-- ====================== VIEW: PASIENT ====================== -->
+  <div id="view-pasien" class="hidden">
+    <div class="max-w-[90rem] mx-auto px-4 md:px-6 lg:px-8 py-6 space-y-5">
+
+      <header class="flex items-center justify-between">
+        <div class="flex items-center gap-3">
+          <div class="w-10 h-10 rounded-xl bg-primary-light text-primary flex items-center justify-center">
+            <span class="material-symbols-outlined">account_circle</span>
+          </div>
+          <div>
+            <p class="font-extrabold text-sm leading-tight" id="pasien-header-name">Pasien</p>
+            <p class="text-fluid-1 text-ink-muted">Dashboard Pasien</p>
+          </div>
+        </div>
+        <button type="button" onclick="handleLogout()"
+          class="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg text-fluid-2 font-semibold text-ink-muted hover:text-red-600 hover:bg-red-50 border border-line transition-all">
+          <span class="material-symbols-outlined text-base">logout</span> Keluar
+        </button>
+      </header>
+
+      <!-- Booking berikutnya -->
+      <section class="bg-white rounded-2xl border border-line shadow-soft p-5 space-y-3 relative overflow-hidden">
+        <div class="absolute top-0 right-0 w-40 h-40 rounded-full bg-primary/5 -translate-y-1/2 translate-x-1/2"></div>
+        <div class="flex items-center justify-between">
+          <h2 class="text-sm font-bold text-ink flex items-center gap-2">
+            <span class="material-symbols-outlined text-primary">event_available</span> Booking Aktif Berikutnya
+          </h2>
+          <button type="button" onclick="openBookingFlow()"
+            class="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-primary hover:bg-primary-dark text-white text-fluid-2 font-bold shadow-soft transition-all">
+            <span class="material-symbols-outlined text-base">add</span> Daftar Antrian Baru
+          </button>
+        </div>
+        <div id="pasien-next" class="relative">
+          <!-- diisi via JS -->
+        </div>
+      </section>
+
+      <!-- Booking aktif lain -->
+      <section class="bg-white rounded-2xl border border-line shadow-soft p-5 space-y-3">
+        <h2 class="text-sm font-bold text-ink flex items-center gap-2">
+          <span class="material-symbols-outlined text-primary">schedule</span> Antrian Aktif
+          <span id="pasien-active-count" class="text-fluid-1 font-semibold text-ink-muted px-2 py-0.5 rounded-full bg-mist border border-line"></span>
+        </h2>
+        <div id="pasien-active-list" class="space-y-2"></div>
+      </section>
+
+      <!-- Riwayat -->
+      <section class="bg-white rounded-2xl border border-line shadow-soft p-5 space-y-3">
+        <div class="flex items-center justify-between">
+          <h2 class="text-sm font-bold text-ink flex items-center gap-2">
+            <span class="material-symbols-outlined text-primary">history</span> Riwayat Kunjungan
+          </h2>
+          <span id="pasien-history-count" class="text-fluid-1 font-semibold text-ink-muted px-2 py-0.5 rounded-full bg-mist border border-line"></span>
+        </div>
+        <div id="pasien-history-list" class="space-y-2"></div>
+      </section>
+
+      <p class="text-center text-fluid-1 text-ink-faint">Status diperbarui otomatis setiap 15 detik.</p>
+    </div>
+  </div>
+
+  <!-- ====================== VIEW: BOOKING ====================== -->
+  <div id="view-booking" class="hidden">
+    <div class="max-w-2xl w-full mx-auto px-4 md:px-6 py-6 space-y-5">
+
+      <header class="flex items-center gap-3">
+        <button type="button" onclick="closeBookingFlow()"
+          class="w-9 h-9 rounded-xl bg-white border border-line flex items-center justify-center text-ink-muted hover:text-primary transition-all">
+          <span class="material-symbols-outlined">arrow_back</span>
+        </button>
+        <div>
+          <p class="font-extrabold text-sm leading-tight">Pendaftaran Antrian</p>
+          <p class="text-fluid-1 text-ink-muted">Pilih jenis, poli, dan jadwal</p>
+        </div>
+      </header>
+
+      <!-- Step indicator -->
+      <div id="bk-step-indicator" class="flex items-center gap-2 text-fluid-1 font-semibold"></div>
+
+      <!-- Step 1: jenis -->
+      <section id="bk-step-1" class="bg-white rounded-2xl border border-line shadow-soft p-5 space-y-4">
+        <h2 class="text-sm font-bold">Jenis Pendaftaran</h2>
+        <div class="grid grid-cols-2 gap-3">
+          <button type="button" id="bk-jenis-booking" onclick="setBkJenis('booking')"
+            class="p-4 rounded-xl border-2 border-line bg-white text-left transition-all">
+            <span class="material-symbols-outlined text-ink-muted">calendar_month</span>
+            <p class="font-bold text-sm mt-2">Booking Terjadwal</p>
+            <p class="text-fluid-1 text-ink-muted mt-0.5">Pilih tanggal &amp; slot jam dokter</p>
+          </button>
+          <button type="button" id="bk-jenis-walkin" onclick="setBkJenis('walkin')"
+            class="p-4 rounded-xl border-2 border-line bg-white text-left transition-all">
+            <span class="material-symbols-outlined text-ink-muted">directions_walk</span>
+            <p class="font-bold text-sm mt-2">Walk-in Hari Ini</p>
+            <p class="text-fluid-1 text-ink-muted mt-0.5">Langsung tanpa janji</p>
+          </button>
+        </div>
+        <button type="button" onclick="goBkStep(2)"
+          class="w-full py-3 rounded-xl bg-primary hover:bg-primary-dark text-white text-sm font-bold transition-all shadow-soft disabled:opacity-40 disabled:cursor-not-allowed" id="bk-next-1" disabled>
+          Lanjut
+        </button>
+      </section>
+
+      <!-- Step 2: poli -->
+      <section id="bk-step-2" class="hidden bg-white rounded-2xl border border-line shadow-soft p-5 space-y-4">
+        <h2 class="text-sm font-bold">Pilih Poli</h2>
+        <div id="bk-poli-grid" class="grid grid-cols-1 sm:grid-cols-2 gap-3"></div>
+        <button type="button" onclick="goBkStep(1)" class="w-full py-3 rounded-xl bg-mist border border-line text-ink-muted text-sm font-bold transition-all hover:text-primary">
+          Kembali
+        </button>
+      </section>
+
+      <!-- Step 3: tanggal / slot / keluhan -->
+      <section id="bk-step-3" class="hidden bg-white rounded-2xl border border-line shadow-soft p-5 space-y-4">
+        <div class="flex items-center justify-between">
+          <h2 class="text-sm font-bold">Pilih Jadwal</h2>
+          <span id="bk-poli-chip" class="text-fluid-1 font-semibold text-primary bg-primary-light px-2.5 py-1 rounded-full"></span>
+        </div>
+
+        <div id="bk-calendar-wrap" class="space-y-3">
+          <div class="flex items-center justify-between">
+            <button type="button" id="bk-cal-prev" onclick="bkCalShift(-1)" class="w-8 h-8 rounded-lg border border-line flex items-center justify-center text-ink-muted hover:text-primary">
+              <span class="material-symbols-outlined text-base">chevron_left</span>
+            </button>
+            <p id="bk-cal-month" class="text-fluid-2 font-bold"></p>
+            <button type="button" id="bk-cal-next" onclick="bkCalShift(1)" class="w-8 h-8 rounded-lg border border-line flex items-center justify-center text-ink-muted hover:text-primary">
+              <span class="material-symbols-outlined text-base">chevron_right</span>
+            </button>
+          </div>
+          <div class="grid grid-cols-7 gap-1 text-center text-fluid-1 font-bold text-ink-muted">
+            <span>Sen</span><span>Sel</span><span>Rab</span><span>Kam</span><span>Jum</span><span>Sab</span><span>Min</span>
+          </div>
+          <div id="bk-cal-grid" class="grid grid-cols-7 gap-1"></div>
+        </div>
+
+        <div id="bk-date-info" class="hidden"></div>
+        <div id="bk-slots" class="hidden"></div>
+
+        <div class="space-y-1.5">
+          <label class="text-fluid-2 font-medium text-ink-muted" for="bk-keluhan">Keluhan Singkat</label>
+          <textarea id="bk-keluhan" rows="2" maxlength="200" placeholder="Contoh: Demam dan batuk sejak 2 hari"
+            class="w-full text-sm bg-mist border border-line rounded-xl px-3.5 py-2.5 focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary transition-all"></textarea>
+          <p class="text-right text-fluid-1 text-ink-faint"><span id="bk-keluhan-count">0</span>/200</p>
+        </div>
+
+        <div class="grid grid-cols-2 gap-3">
+          <button type="button" onclick="goBkStep(2)" class="py-3 rounded-xl bg-mist border border-line text-ink-muted text-sm font-bold transition-all hover:text-primary">Kembali</button>
+          <button type="button" onclick="goBkStep(4)" id="bk-next-3" class="py-3 rounded-xl bg-primary hover:bg-primary-dark text-white text-sm font-bold transition-all shadow-soft disabled:opacity-40 disabled:cursor-not-allowed" disabled>
+            Lanjut
+          </button>
+        </div>
+        <p id="bk-next-hint" class="text-fluid-1 text-ink-faint flex items-center gap-1">
+          <span class="material-symbols-outlined text-sm">info</span>
+          <span id="bk-next-hint-text"></span>
+        </p>
+      </section>
+
+      <!-- Step 4: konfirmasi -->
+      <section id="bk-step-4" class="hidden bg-white rounded-2xl border border-line shadow-soft p-5 space-y-4">
+        <h2 class="text-sm font-bold flex items-center gap-2">
+          <span class="material-symbols-outlined text-primary">fact_check</span> Konfirmasi Pendaftaran
+        </h2>
+        <div id="bk-confirm-summary" class="space-y-3"></div>
+        <div class="grid grid-cols-2 gap-3">
+          <button type="button" onclick="goBkStep(3)" class="py-3 rounded-xl bg-mist border border-line text-ink-muted text-sm font-bold transition-all hover:text-primary">Kembali</button>
+          <button type="button" onclick="submitBooking(event)" class="py-3 rounded-xl bg-secondary hover:bg-secondary-dark text-white text-sm font-bold transition-all shadow-soft inline-flex items-center justify-center gap-2">
+            <span class="material-symbols-outlined">check</span> Simpan Pendaftaran
+          </button>
+        </div>
+      </section>
+
+      <!-- Step 5: sukses -->
+      <section id="bk-step-5" class="hidden bg-white rounded-2xl border border-line shadow-soft p-8 space-y-5 text-center animate-slide-up">
+        <div class="w-16 h-16 rounded-2xl bg-secondary-light text-secondary flex items-center justify-center mx-auto">
+          <span class="material-symbols-outlined text-3xl">check_circle</span>
+        </div>
+        <div>
+          <p class="text-fluid-2 font-semibold text-ink-muted uppercase tracking-wider">Nomor Antrian Anda</p>
+          <p id="bk-success-no" class="text-5xl font-extrabold text-primary tracking-tight mt-1"></p>
+        </div>
+        <div id="bk-success-summary" class="space-y-2 text-sm text-ink-muted"></div>
+        <div class="grid grid-cols-2 gap-3 pt-2">
+          <button type="button" onclick="openStatusFromBooking()"
+            class="py-3 rounded-xl bg-primary hover:bg-primary-dark text-white text-sm font-bold transition-all shadow-soft inline-flex items-center justify-center gap-2">
+            <span class="material-symbols-outlined">graphic_eq</span> Lihat Status
+          </button>
+          <button type="button" onclick="gotoDashboard()"
+            class="py-3 rounded-xl bg-white border border-line text-ink text-sm font-bold transition-all hover:bg-mist">
+            Beranda
+          </button>
+        </div>
+      </section>
+
+    </div>
+  </div>
+
+  <!-- ====================== VIEW: STATUS ANTRIAN ====================== -->
+  <div id="view-status" class="hidden">
+    <div class="max-w-lg mx-auto px-4 md:px-6 py-6 space-y-5">
+
+      <header class="flex items-center gap-3">
+        <button type="button" onclick="gotoDashboard()"
+          class="w-9 h-9 rounded-xl bg-white border border-line flex items-center justify-center text-ink-muted hover:text-primary transition-all">
+          <span class="material-symbols-outlined">arrow_back</span>
+        </button>
+        <div>
+          <p class="font-extrabold text-sm leading-tight">Status Antrian</p>
+          <p class="text-fluid-1 text-ink-muted">Real-time &middot; diperbarui tiap 12 detik</p>
+        </div>
+      </header>
+
+      <div id="status-card" class="space-y-4"></div>
+
+      <button type="button" onclick="gotoDashboard()"
+        class="w-full py-3 rounded-xl bg-white border border-line text-ink-muted text-sm font-bold transition-all hover:bg-mist">Kembali ke Beranda</button>
+    </div>
+  </div>
+
+  <!-- ====================== VIEW: LOKET ====================== -->
+  <div id="view-loket" class="hidden">
+    <div class="max-w-[90rem] mx-auto px-4 md:px-6 lg:px-8 py-6 space-y-5">
+
+      <header class="flex items-center justify-between">
+        <div class="flex items-center gap-3">
+          <div class="w-10 h-10 rounded-xl bg-primary text-white flex items-center justify-center">
+            <span class="material-symbols-outlined">storefront</span>
+          </div>
+          <div>
+            <p class="font-extrabold text-sm leading-tight" id="loket-header-name">Petugas Loket</p>
+            <p class="text-fluid-1 text-ink-muted">Dashboard Operasional &middot; <span id="loket-today"></span></p>
+          </div>
+        </div>
+        <button type="button" onclick="handleLogout()"
+          class="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg text-fluid-2 font-semibold text-ink-muted hover:text-red-600 hover:bg-red-50 border border-line transition-all">
+          <span class="material-symbols-outlined text-base">logout</span> Keluar
+        </button>
+      </header>
+
+      <!-- Stat cards -->
+      <div id="loket-stats" class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3"></div>
+
+      <!-- Panggil berikutnya + walk-in -->
+      <section class="bg-white rounded-2xl border border-line shadow-soft p-4 flex flex-wrap items-center justify-between gap-3">
+        <div class="flex items-center gap-3 min-w-0">
+          <div class="w-10 h-10 rounded-xl bg-primary-light text-primary flex items-center justify-center shrink-0">
+            <span class="material-symbols-outlined">campaign</span>
+          </div>
+          <div class="min-w-0">
+            <p class="text-fluid-2 font-bold">Panggil Antrian Berikutnya</p>
+            <p class="text-fluid-1 text-ink-muted">Mengambil antrian terlama dari poli terpilih</p>
+          </div>
+        </div>
+        <div class="flex gap-2">
+          <button type="button" onclick="openWalkinModal()"
+            class="inline-flex items-center gap-1.5 px-3.5 py-2.5 rounded-xl bg-white border-2 border-dashed border-primary text-primary text-fluid-2 font-bold transition-all hover:bg-primary-light">
+            <span class="material-symbols-outlined text-base">person_add</span> Walk-in Manual
+          </button>
+          <button type="button" onclick="panggilBerikutnya()" id="btn-panggil"
+            class="inline-flex items-center gap-1.5 px-3.5 py-2.5 rounded-xl bg-secondary hover:bg-secondary-dark text-white text-fluid-2 font-bold transition-all shadow-soft">
+            <span class="material-symbols-outlined text-base">campaign</span> Panggil
+          </button>
+        </div>
+      </section>
+
+      <!-- Filter -->
+      <section class="bg-white rounded-2xl border border-line shadow-soft p-4 space-y-3">
+        <div class="flex items-center justify-between flex-wrap gap-2">
+          <div id="loket-poli-tabs" class="flex gap-2 overflow-x-auto pb-1"></div>
+          <select id="loket-status-filter" onchange="renderLoketTable()"
+            class="text-fluid-2 font-semibold bg-mist border border-line rounded-lg px-2.5 py-2 focus:outline-none focus:border-primary">
+            <option value="">Semua Status</option>
+            <option value="booking">Booking</option>
+            <option value="checkin">Check-in</option>
+            <option value="dipanggil">Dipanggil</option>
+            <option value="diperiksa">Diperiksa</option>
+            <option value="selesai">Selesai</option>
+            <option value="batal">Batal</option>
+          </select>
+        </div>
+        <div class="hidden md:block overflow-x-auto -mx-4 px-4">
+          <table class="w-full text-fluid-2 min-w-[640px]">
+            <thead>
+              <tr class="text-left text-fluid-1 uppercase tracking-wider text-ink-muted border-b border-line">
+                <th class="py-2 pr-3 font-semibold">No.</th>
+                <th class="py-2 pr-3 font-semibold">Pasien</th>
+                <th class="py-2 pr-3 font-semibold">Jenis</th>
+                <th class="py-2 pr-3 font-semibold">Jam</th>
+                <th class="py-2 pr-3 font-semibold">Keluhan</th>
+                <th class="py-2 pr-3 font-semibold">Status</th>
+                <th class="py-2 font-semibold text-right">Aksi</th>
+              </tr>
+            </thead>
+            <tbody id="loket-table-body"></tbody>
+          </table>
+        </div>
+        <div id="loket-table-cards" class="md:hidden space-y-2"></div>
+        <div id="loket-empty" class="hidden text-center py-10 text-ink-faint text-fluid-2">
+          Tidak ada data antrian untuk filter ini.
+        </div>
+        <p class="text-fluid-1 text-ink-faint text-right" id="loket-updated"></p>
+      </section>
+    </div>
+  </div>
+
+  <!-- ====================== VIEW: DOKTER ====================== -->
+  <div id="view-dokter" class="hidden">
+    <div class="max-w-[90rem] mx-auto px-4 md:px-6 lg:px-8 py-6 space-y-5">
+
+      <header class="flex items-center justify-between">
+        <div class="flex items-center gap-3">
+          <div class="w-10 h-10 rounded-xl bg-primary text-white flex items-center justify-center">
+            <span class="material-symbols-outlined">person</span>
+          </div>
+          <div>
+            <p class="font-extrabold text-sm leading-tight" id="dokter-header-name">Dokter</p>
+            <p class="text-fluid-1 text-ink-muted" id="dokter-poli-name">Poli</p>
+          </div>
+        </div>
+        <button type="button" onclick="handleLogout()"
+          class="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg text-fluid-2 font-semibold text-ink-muted hover:text-red-600 hover:bg-red-50 border border-line transition-all">
+          <span class="material-symbols-outlined text-base">logout</span> Keluar
+        </button>
+      </header>
+
+      <section class="bg-white rounded-2xl border border-line shadow-soft p-5 space-y-3">
+        <div class="flex items-center gap-2">
+          <span class="material-symbols-outlined text-secondary">campaign</span>
+          <h2 class="text-sm font-bold">Sedang Dipanggil</h2>
+          <span id="dokter-count-dipanggil" class="text-fluid-1 font-semibold text-secondary bg-secondary-light px-2 py-0.5 rounded-full"></span>
+        </div>
+        <div id="dokter-dipanggil" class="space-y-2"></div>
+      </section>
+
+      <section class="bg-white rounded-2xl border border-line shadow-soft p-5 space-y-3">
+        <div class="flex items-center gap-2">
+          <span class="material-symbols-outlined text-amber-500">medical_services</span>
+          <h2 class="text-sm font-bold">Dalam Pemeriksaan</h2>
+          <span id="dokter-count-diperiksa" class="text-fluid-1 font-semibold text-amber-600 bg-amber-50 px-2 py-0.5 rounded-full"></span>
+        </div>
+        <div id="dokter-diperiksa" class="space-y-2"></div>
+      </section>
+
+      <section class="bg-white rounded-2xl border border-line shadow-soft p-5 space-y-3">
+        <div class="flex items-center gap-2">
+          <span class="material-symbols-outlined text-emerald-600">check_circle</span>
+          <h2 class="text-sm font-bold">Selesai Hari Ini</h2>
+          <span id="dokter-count-selesai" class="text-fluid-1 font-semibold text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded-full"></span>
+        </div>
+        <div id="dokter-selesai" class="space-y-2"></div>
+      </section>
+
+      <p class="text-center text-fluid-1 text-ink-faint">Status diperbarui otomatis setiap 15 detik.</p>
+    </div>
+  </div>
+
+  <!-- ====================== VIEW: ADMIN ====================== -->
+  <div id="view-admin" class="hidden">
+    <div class="max-w-[90rem] mx-auto px-4 md:px-6 lg:px-8 py-6 space-y-5">
+
+      <header class="flex items-center justify-between">
+        <div class="flex items-center gap-3">
+          <div class="w-10 h-10 rounded-xl bg-ink text-white flex items-center justify-center">
+            <span class="material-symbols-outlined">shield_person</span>
+          </div>
+          <div>
+            <p class="font-extrabold text-sm leading-tight" id="admin-header-name">Admin</p>
+            <p class="text-fluid-1 text-ink-muted">Administrasi &amp; Laporan UPK</p>
+          </div>
+        </div>
+        <button type="button" onclick="handleLogout()"
+          class="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg text-fluid-2 font-semibold text-ink-muted hover:text-red-600 hover:bg-red-50 border border-line transition-all">
+          <span class="material-symbols-outlined text-base">logout</span> Keluar
+        </button>
+      </header>
+
+      <!-- Admin tabs -->
+      <div class="flex gap-2 overflow-x-auto pb-1" id="adm-tabs">
+        <button type="button" data-tab="poli" onclick="setAdminTab('poli')"
+          class="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-fluid-2 font-bold bg-white border border-line transition-all">
+          <span class="material-symbols-outlined text-base">apartment</span> Master Poli
+        </button>
+        <button type="button" data-tab="jadwal" onclick="setAdminTab('jadwal')"
+          class="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-fluid-2 font-bold bg-white border border-line transition-all">
+          <span class="material-symbols-outlined text-base">calendar_month</span> Jadwal Dokter
+        </button>
+        <button type="button" data-tab="akun" onclick="setAdminTab('akun')"
+          class="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-fluid-2 font-bold bg-white border border-line transition-all">
+          <span class="material-symbols-outlined text-base">manage_accounts</span> Akun Petugas
+        </button>
+        <button type="button" data-tab="laporan" onclick="setAdminTab('laporan')"
+          class="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-fluid-2 font-bold bg-white border border-line transition-all">
+          <span class="material-symbols-outlined text-base">assessment</span> Laporan &amp; Statistik
+        </button>
+      </div>
+
+      <!-- Panel: Poli -->
+      <section id="adm-panel-poli" class="bg-white rounded-2xl border border-line shadow-soft p-5 space-y-4">
+        <div class="flex items-center justify-between">
+          <h2 class="text-sm font-bold">Master Poli &amp; Kuota Harian</h2>
+          <button type="button" onclick="openPoliModal()"
+            class="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg bg-primary hover:bg-primary-dark text-white text-fluid-2 font-bold transition-all shadow-soft">
+            <span class="material-symbols-outlined text-base">add</span> Tambah Poli
+          </button>
+        </div>
+        <div class="hidden md:block overflow-x-auto -mx-4 px-4">
+          <table class="w-full text-fluid-2 min-w-[560px]">
+            <thead>
+              <tr class="text-left text-fluid-1 uppercase tracking-wider text-ink-muted border-b border-line">
+                <th class="py-2 pr-3 font-semibold">Kode</th>
+                <th class="py-2 pr-3 font-semibold">Nama Poli</th>
+                <th class="py-2 pr-3 font-semibold">Jenis</th>
+                <th class="py-2 pr-3 font-semibold">Kuota Harian</th>
+                <th class="py-2 font-semibold text-right">Aksi</th>
+              </tr>
+            </thead>
+            <tbody id="adm-poli-table"></tbody>
+          </table>
+        </div>
+        <div id="adm-poli-cards" class="md:hidden space-y-2"></div>
+      </section>
+
+      <!-- Panel: Jadwal -->
+      <section id="adm-panel-jadwal" class="hidden bg-white rounded-2xl border border-line shadow-soft p-5 space-y-4">
+        <div class="flex items-center justify-between">
+          <h2 class="text-sm font-bold">Jadwal Dokter</h2>
+          <button type="button" onclick="openJadwalModal()"
+            class="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg bg-primary hover:bg-primary-dark text-white text-fluid-2 font-bold transition-all shadow-soft">
+            <span class="material-symbols-outlined text-base">add</span> Tambah Jadwal
+          </button>
+        </div>
+        <div class="hidden md:block overflow-x-auto -mx-4 px-4">
+          <table class="w-full text-fluid-2 min-w-[640px]">
+            <thead>
+              <tr class="text-left text-fluid-1 uppercase tracking-wider text-ink-muted border-b border-line">
+                <th class="py-2 pr-3 font-semibold">Poli</th>
+                <th class="py-2 pr-3 font-semibold">Dokter</th>
+                <th class="py-2 pr-3 font-semibold">Hari</th>
+                <th class="py-2 pr-3 font-semibold">Jam</th>
+                <th class="py-2 pr-3 font-semibold">Status</th>
+                <th class="py-2 font-semibold text-right">Aksi</th>
+              </tr>
+            </thead>
+            <tbody id="adm-jadwal-table"></tbody>
+          </table>
+        </div>
+        <div id="adm-jadwal-cards" class="md:hidden space-y-2"></div>
+      </section>
+
+      <!-- Panel: Akun -->
+      <section id="adm-panel-akun" class="hidden bg-white rounded-2xl border border-line shadow-soft p-5 space-y-4">
+        <div class="flex items-center justify-between">
+          <h2 class="text-sm font-bold">Akun Petugas &amp; Dokter</h2>
+          <button type="button" onclick="openStaffModal()"
+            class="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg bg-primary hover:bg-primary-dark text-white text-fluid-2 font-bold transition-all shadow-soft">
+            <span class="material-symbols-outlined text-base">person_add</span> Tambah Akun
+          </button>
+        </div>
+        <div class="hidden md:block overflow-x-auto -mx-4 px-4">
+          <table class="w-full text-fluid-2 min-w-[560px]">
+            <thead>
+              <tr class="text-left text-fluid-1 uppercase tracking-wider text-ink-muted border-b border-line">
+                <th class="py-2 pr-3 font-semibold">Nama</th>
+                <th class="py-2 pr-3 font-semibold">Username</th>
+                <th class="py-2 pr-3 font-semibold">Role</th>
+                <th class="py-2 pr-3 font-semibold">Unit / Poli</th>
+                <th class="py-2 font-semibold text-right">Aksi</th>
+              </tr>
+            </thead>
+            <tbody id="adm-staff-table"></tbody>
+          </table>
+        </div>
+        <div id="adm-staff-cards" class="md:hidden space-y-2"></div>
+      </section>
+
+      <!-- Panel: Laporan -->
+      <section id="adm-panel-laporan" class="hidden space-y-4">
+        <div class="grid grid-cols-2 lg:grid-cols-4 gap-3" id="adm-report-cards"></div>
+
+        <div class="grid lg:grid-cols-2 gap-4">
+          <div class="bg-white rounded-2xl border border-line shadow-soft p-5 space-y-3">
+            <h3 class="text-fluid-2 font-bold flex items-center gap-2">
+              <span class="material-symbols-outlined text-primary">show_chart</span> Tren Kunjungan 14 Hari
+            </h3>
+            <div class="relative h-56"><canvas id="chart-trend"></canvas></div>
+          </div>
+          <div class="bg-white rounded-2xl border border-line shadow-soft p-5 space-y-3">
+            <h3 class="text-fluid-2 font-bold flex items-center gap-2">
+              <span class="material-symbols-outlined text-primary">bar_chart</span> Jumlah Pasien per Poli
+            </h3>
+            <div class="flex justify-center gap-2 mb-2">
+              <button type="button" onclick="renderReportCharts('today')" id="report-toggle-today"
+                class="px-3 py-1.5 rounded-lg text-fluid-1 font-bold bg-primary text-white transition-all">Hari Ini</button>
+              <button type="button" onclick="renderReportCharts('week')" id="report-toggle-week"
+                class="px-3 py-1.5 rounded-lg text-fluid-1 font-bold bg-white border border-line text-ink-muted transition-all">7 Hari</button>
+            </div>
+            <div class="relative h-56"><canvas id="chart-poli"></canvas></div>
+          </div>
+        </div>
+
+        <div class="bg-white rounded-2xl border border-line shadow-soft p-5 space-y-3">
+          <h3 class="text-fluid-2 font-bold flex items-center gap-2">
+            <span class="material-symbols-outlined text-primary">pie_chart</span> Breakdown Tipe Pasien (7 Hari)
+          </h3>
+          <div class="grid lg:grid-cols-2 items-center gap-4">
+            <div class="relative h-56 mx-auto w-full max-w-xs"><canvas id="chart-tipe"></canvas></div>
+            <div id="report-tipe-legend" class="space-y-2 text-fluid-2"></div>
+          </div>
+        </div>
+      </section>
+    </div>
+  </div>
+
+  <!-- ====================== MODALS ====================== -->
+
+  <!-- Reschedule -->
+  <div id="modal-reschedule" class="fixed inset-0 z-50 bg-ink/50 backdrop-blur-sm hidden items-center justify-center p-4">
+    <div class="bg-white rounded-2xl border border-line max-w-lg w-full sm:max-w-xl shadow-2xl p-5 space-y-4 animate-modal-in max-h-[90vh] overflow-y-auto">
+      <div class="flex items-center justify-between border-b border-line pb-3">
+        <h3 class="text-sm font-bold flex items-center gap-2">
+          <span class="material-symbols-outlined text-primary">update</span> Jadwalkan Ulang
+        </h3>
+        <button type="button" onclick="closeModal('modal-reschedule')" class="text-ink-muted hover:text-ink p-1"><span class="material-symbols-outlined">close</span></button>
+      </div>
+      <div id="rs-info" class="text-fluid-2 text-ink-muted bg-mist rounded-xl p-3 border border-line"></div>
+      <div class="space-y-1.5">
+        <p class="text-fluid-2 font-semibold text-ink-muted">Pilih Tanggal Baru</p>
+        <div id="rs-date-options" class="grid grid-cols-3 gap-2"></div>
+      </div>
+      <div class="space-y-1.5">
+        <p class="text-fluid-2 font-semibold text-ink-muted">Pilih Slot Jam</p>
+        <div id="rs-slots" class="flex flex-wrap gap-2"></div>
+      </div>
+      <button type="button" onclick="submitReschedule()" id="btn-rs-submit"
+        class="w-full py-3 rounded-xl bg-primary hover:bg-primary-dark text-white text-sm font-bold transition-all shadow-soft disabled:opacity-40 disabled:cursor-not-allowed" disabled>
+        Simpan Jadwal Baru
+      </button>
+    </div>
+  </div>
+
+  <!-- Walk-in manual loket -->
+  <div id="modal-walkin" class="fixed inset-0 z-50 bg-ink/50 backdrop-blur-sm hidden items-center justify-center p-4">
+    <div class="bg-white rounded-2xl border border-line max-w-lg w-full sm:max-w-xl shadow-2xl p-5 space-y-4 animate-modal-in max-h-[90vh] overflow-y-auto">
+      <div class="flex items-center justify-between border-b border-line pb-3">
+        <h3 class="text-sm font-bold flex items-center gap-2">
+          <span class="material-symbols-outlined text-primary">person_add</span> Input Walk-in Manual
+        </h3>
+        <button type="button" onclick="closeModal('modal-walkin')" class="text-ink-muted hover:text-ink p-1"><span class="material-symbols-outlined">close</span></button>
+      </div>
+
+      <div class="space-y-1.5">
+        <label class="text-fluid-2 font-medium text-ink-muted" for="wkl-poli">Poli Tujuan</label>
+        <select id="wkl-poli" class="w-full text-sm bg-mist border border-line rounded-xl px-3 py-2.5 focus:outline-none focus:border-primary"></select>
+      </div>
+
+      <div class="space-y-1.5">
+        <label class="text-fluid-2 font-medium text-ink-muted" for="wkl-search">Cari Pasien Terdaftar (NIP/NIK atau nama)</label>
+        <div class="flex gap-2">
+          <input type="text" id="wkl-search" placeholder="Ketik NIK/NIP atau nama..."
+            class="flex-1 text-sm bg-mist border border-line rounded-xl px-3 py-2.5 focus:outline-none focus:border-primary transition-all">
+          <button type="button" onclick="searchWalkinPasien()"
+            class="px-3 rounded-xl bg-primary text-white inline-flex items-center justify-center shadow-soft"><span class="material-symbols-outlined text-base">search</span></button>
+        </div>
+        <div id="wkl-result" class="space-y-2"></div>
+      </div>
+
+      <div class="flex items-center gap-2 text-fluid-2 text-ink-muted border-t border-line pt-3">
+        <span class="material-symbols-outlined text-base">info</span>
+        Pasien baru akan otomatis dibuatkan akun ringan.
+      </div>
+
+      <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+        <div class="space-y-1.5">
+          <label class="text-fluid-2 font-medium text-ink-muted" for="wkl-nama">Nama Pasien</label>
+          <input type="text" id="wkl-nama" placeholder="Nama lengkap" class="w-full text-sm bg-mist border border-line rounded-xl px-3 py-2.5 focus:outline-none focus:border-primary">
+        </div>
+        <div class="space-y-1.5">
+          <label class="text-fluid-2 font-medium text-ink-muted">Tipe</label>
+          <div class="grid grid-cols-3 gap-1 p-1 bg-mist border border-line rounded-xl">
+            <button type="button" data-tipe="pegawai" onclick="setWklTipe('pegawai')" class="py-1.5 text-fluid-1 font-bold rounded-lg transition-all">Pegawai</button>
+            <button type="button" data-tipe="keluarga" onclick="setWklTipe('keluarga')" class="py-1.5 text-fluid-1 font-bold rounded-lg transition-all">Keluarga</button>
+            <button type="button" data-tipe="umum" onclick="setWklTipe('umum')" class="py-1.5 text-fluid-1 font-bold rounded-lg bg-white text-primary shadow-sm border border-line transition-all">Umum</button>
+          </div>
+        </div>
+        <div class="space-y-1.5">
+          <label class="text-fluid-2 font-medium text-ink-muted" for="wkl-identitas">NIP / NIK</label>
+          <input type="text" id="wkl-identitas" placeholder="NIP atau NIK" class="w-full text-sm bg-mist border border-line rounded-xl px-3 py-2.5 focus:outline-none focus:border-primary">
+        </div>
+        <div class="space-y-1.5">
+          <label class="text-fluid-2 font-medium text-ink-muted" for="wkl-hp">No. HP</label>
+          <input type="tel" id="wkl-hp" placeholder="08xxxxxxxxxx" class="w-full text-sm bg-mist border border-line rounded-xl px-3 py-2.5 focus:outline-none focus:border-primary">
+        </div>
+        <div id="wkl-unit-wrap" class="hidden sm:col-span-2 space-y-1.5">
+          <label class="text-fluid-2 font-medium text-ink-muted" for="wkl-unit">Unit Kerja</label>
+          <input type="text" id="wkl-unit" placeholder="Contoh: Ditjen Yankes" class="w-full text-sm bg-mist border border-line rounded-xl px-3 py-2.5 focus:outline-none focus:border-primary">
+        </div>
+        <div class="sm:col-span-2 space-y-1.5">
+          <label class="text-fluid-2 font-medium text-ink-muted" for="wkl-keluhan">Keluhan Singkat</label>
+          <textarea id="wkl-keluhan" rows="2" maxlength="200" placeholder="Keluhan singkat pasien" class="w-full text-sm bg-mist border border-line rounded-xl px-3 py-2.5 focus:outline-none focus:border-primary"></textarea>
+        </div>
+      </div>
+
+      <button type="button" onclick="submitWalkinLoket()" id="btn-wkl-save"
+        class="w-full py-3 rounded-xl bg-secondary hover:bg-secondary-dark text-white text-sm font-bold transition-all shadow-soft">
+        Simpan Antrian Walk-in
+      </button>
+    </div>
+  </div>
+
+  <!-- Admin: Poli -->
+  <div id="modal-poli" class="fixed inset-0 z-50 bg-ink/50 backdrop-blur-sm hidden items-center justify-center p-4">
+    <div class="bg-white rounded-2xl border border-line max-w-md w-full shadow-2xl p-5 space-y-4 animate-modal-in">
+      <div class="flex items-center justify-between border-b border-line pb-3">
+        <h3 class="text-sm font-bold" id="pol-modal-title">Tambah Poli</h3>
+        <button type="button" onclick="closeModal('modal-poli')" class="text-ink-muted hover:text-ink p-1"><span class="material-symbols-outlined">close</span></button>
+      </div>
+      <input type="hidden" id="pol-id">
+      <div class="grid grid-cols-2 gap-3">
+        <div class="space-y-1.5">
+          <label class="text-fluid-2 font-medium text-ink-muted" for="pol-kode">Kode Poli</label>
+          <input type="text" id="pol-kode" maxlength="4" placeholder="CTH" class="w-full text-sm bg-mist border border-line rounded-xl px-3 py-2.5 focus:outline-none focus:border-primary uppercase">
+        </div>
+        <div class="space-y-1.5">
+          <label class="text-fluid-2 font-medium text-ink-muted" for="pol-jenis">Jenis</label>
+          <select id="pol-jenis" class="w-full text-sm bg-mist border border-line rounded-xl px-3 py-2.5 focus:outline-none focus:border-primary">
+            <option value="umum">Umum</option>
+            <option value="spesialis">Spesialis</option>
+          </select>
+        </div>
+      </div>
+      <div class="space-y-1.5">
+        <label class="text-fluid-2 font-medium text-ink-muted" for="pol-nama">Nama Poli</label>
+        <input type="text" id="pol-nama" placeholder="Contoh: Poli Kulit" class="w-full text-sm bg-mist border border-line rounded-xl px-3 py-2.5 focus:outline-none focus:border-primary">
+      </div>
+      <div class="space-y-1.5">
+        <label class="text-fluid-2 font-medium text-ink-muted" for="pol-kuota">Kuota Harian</label>
+        <input type="number" id="pol-kuota" min="1" placeholder="30" class="w-full text-sm bg-mist border border-line rounded-xl px-3 py-2.5 focus:outline-none focus:border-primary">
+      </div>
+      <button type="button" onclick="submitPoli()" class="w-full py-3 rounded-xl bg-primary hover:bg-primary-dark text-white text-sm font-bold transition-all shadow-soft">Simpan Poli</button>
+    </div>
+  </div>
+
+  <!-- Admin: Jadwal -->
+  <div id="modal-jadwal" class="fixed inset-0 z-50 bg-ink/50 backdrop-blur-sm hidden items-center justify-center p-4">
+    <div class="bg-white rounded-2xl border border-line max-w-md w-full shadow-2xl p-5 space-y-4 animate-modal-in">
+      <div class="flex items-center justify-between border-b border-line pb-3">
+        <h3 class="text-sm font-bold" id="jwl-modal-title">Tambah Jadwal</h3>
+        <button type="button" onclick="closeModal('modal-jadwal')" class="text-ink-muted hover:text-ink p-1"><span class="material-symbols-outlined">close</span></button>
+      </div>
+      <input type="hidden" id="jwl-id">
+      <div class="space-y-1.5">
+        <label class="text-fluid-2 font-medium text-ink-muted" for="jwl-poli">Poli</label>
+        <select id="jwl-poli" class="w-full text-sm bg-mist border border-line rounded-xl px-3 py-2.5 focus:outline-none focus:border-primary"></select>
+      </div>
+      <div class="space-y-1.5">
+        <label class="text-fluid-2 font-medium text-ink-muted" for="jwl-dokter">Nama Dokter</label>
+        <input type="text" id="jwl-dokter" placeholder="Contoh: dr. Andi Wijaya, Sp.JP" class="w-full text-sm bg-mist border border-line rounded-xl px-3 py-2.5 focus:outline-none focus:border-primary">
+      </div>
+      <div class="grid grid-cols-3 gap-3">
+        <div class="space-y-1.5">
+          <label class="text-fluid-2 font-medium text-ink-muted" for="jwl-hari">Hari</label>
+          <select id="jwl-hari" class="w-full text-sm bg-mist border border-line rounded-xl px-2 py-2.5 focus:outline-none focus:border-primary">
+            <option>Senin</option><option>Selasa</option><option>Rabu</option><option>Kamis</option><option>Jumat</option>
+          </select>
+        </div>
+        <div class="space-y-1.5">
+          <label class="text-fluid-2 font-medium text-ink-muted" for="jwl-mulai">Jam Mulai</label>
+          <input type="time" id="jwl-mulai" value="08:00" class="w-full text-sm bg-mist border border-line rounded-xl px-2 py-2.5 focus:outline-none focus:border-primary">
+        </div>
+        <div class="space-y-1.5">
+          <label class="text-fluid-2 font-medium text-ink-muted" for="jwl-selesai">Jam Selesai</label>
+          <input type="time" id="jwl-selesai" value="12:00" class="w-full text-sm bg-mist border border-line rounded-xl px-2 py-2.5 focus:outline-none focus:border-primary">
+        </div>
+      </div>
+      <div class="space-y-1.5">
+        <label class="text-fluid-2 font-medium text-ink-muted" for="jwl-aktif">Status</label>
+        <select id="jwl-aktif" class="w-full text-sm bg-mist border border-line rounded-xl px-3 py-2.5 focus:outline-none focus:border-primary">
+          <option value="aktif">Aktif</option>
+          <option value="nonaktif">Nonaktif</option>
+        </select>
+      </div>
+      <button type="button" onclick="submitJadwal()" class="w-full py-3 rounded-xl bg-primary hover:bg-primary-dark text-white text-sm font-bold transition-all shadow-soft">Simpan Jadwal</button>
+    </div>
+  </div>
+
+  <!-- Admin: Staff -->
+  <div id="modal-staff" class="fixed inset-0 z-50 bg-ink/50 backdrop-blur-sm hidden items-center justify-center p-4">
+    <div class="bg-white rounded-2xl border border-line max-w-md w-full shadow-2xl p-5 space-y-4 animate-modal-in">
+      <div class="flex items-center justify-between border-b border-line pb-3">
+        <h3 class="text-sm font-bold">Tambah Akun Petugas / Dokter</h3>
+        <button type="button" onclick="closeModal('modal-staff')" class="text-ink-muted hover:text-ink p-1"><span class="material-symbols-outlined">close</span></button>
+      </div>
+      <div class="space-y-1.5">
+        <label class="text-fluid-2 font-medium text-ink-muted" for="stf-nama">Nama Lengkap</label>
+        <input type="text" id="stf-nama" placeholder="Contoh: Rina Kartika" class="w-full text-sm bg-mist border border-line rounded-xl px-3 py-2.5 focus:outline-none focus:border-primary">
+      </div>
+      <div class="grid grid-cols-2 gap-3">
+        <div class="space-y-1.5">
+          <label class="text-fluid-2 font-medium text-ink-muted" for="stf-username">Username</label>
+          <input type="text" id="stf-username" placeholder="Min. 3 karakter" class="w-full text-sm bg-mist border border-line rounded-xl px-3 py-2.5 focus:outline-none focus:border-primary">
+        </div>
+        <div class="space-y-1.5">
+          <label class="text-fluid-2 font-medium text-ink-muted" for="stf-password">Password</label>
+          <input type="password" id="stf-password" placeholder="Min. 6 karakter" class="w-full text-sm bg-mist border border-line rounded-xl px-3 py-2.5 focus:outline-none focus:border-primary">
+        </div>
+      </div>
+      <div class="grid grid-cols-2 gap-3">
+        <div class="space-y-1.5">
+          <label class="text-fluid-2 font-medium text-ink-muted" for="stf-role">Role</label>
+          <select id="stf-role" onchange="onStfRoleChange()" class="w-full text-sm bg-mist border border-line rounded-xl px-3 py-2.5 focus:outline-none focus:border-primary">
+            <option value="petugas_loket">Petugas Loket</option>
+            <option value="dokter">Dokter / Poli</option>
+          </select>
+        </div>
+        <div id="stf-poli-wrap" class="space-y-1.5 hidden">
+          <label class="text-fluid-2 font-medium text-ink-muted" for="stf-poli">Poli</label>
+          <select id="stf-poli" class="w-full text-sm bg-mist border border-line rounded-xl px-3 py-2.5 focus:outline-none focus:border-primary"></select>
+        </div>
+        <div class="space-y-1.5">
+          <label class="text-fluid-2 font-medium text-ink-muted" for="stf-hp">No. HP</label>
+          <input type="tel" id="stf-hp" placeholder="08xxxxxxxxxx" class="w-full text-sm bg-mist border border-line rounded-xl px-3 py-2.5 focus:outline-none focus:border-primary">
+        </div>
+      </div>
+      <button type="button" onclick="submitStaff()" class="w-full py-3 rounded-xl bg-primary hover:bg-primary-dark text-white text-sm font-bold transition-all shadow-soft">Simpan Akun</button>
+    </div>
+  </div>
+
+  <!-- Toast -->
+  <div id="toast" class="fixed bottom-4 right-4 z-[60] transform translate-y-16 opacity-0 transition-all duration-300 pointer-events-none">
+    <div id="toast-body" class="px-4 py-3 rounded-xl bg-ink text-white text-fluid-2 font-medium shadow-lg flex items-center gap-2 border border-white/10">
+      <span class="material-symbols-outlined text-base text-secondary" id="toast-icon">check_circle</span>
+      <span id="toast-msg">Notifikasi</span>
+    </div>
+  </div>
+
+  <?!= include('Script'); ?>
+</body>
+</html>
